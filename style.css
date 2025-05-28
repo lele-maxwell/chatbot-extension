@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@import 'tailwindcss';
+@layer base {
+  html {
+    @apply text-sm;
+  } 
+
+  body {
+    @apply transition-colors duration-300;
+  }
+
+  .dark body {
+    @apply bg-gray-900 text-white;
+  }
+
+  .light body {
+    @apply bg-white text-black;
+  }
+}
