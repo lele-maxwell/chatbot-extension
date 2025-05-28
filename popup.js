@@ -6,10 +6,9 @@ const pageStatus = document.getElementById('pageStatus')
 let includePageContent = false
 
 // Toggle button functionality
-includePageToggle.addEventListener('click', async () => {
-  includePageContent = !includePageContent
-  updateToggleButton()
-
+document.getElementById('includePageToggle').addEventListener('change', async (e) => {
+  includePageContent = e.target.checked;
+  
   if (includePageContent) {
     try {
       console.log('Starting page scraping process...'); // Debug log
@@ -96,13 +95,8 @@ function handleScrapedContent(response) {
 }
 
 function updateToggleButton() {
-  if (includePageContent) {
-    includePageToggle.classList.add('bg-blue-600', 'text-white')
-    includePageToggle.classList.remove('border-gray-300', 'dark:border-gray-600')
-  } else {
-    includePageToggle.classList.remove('bg-blue-600', 'text-white')
-    includePageToggle.classList.add('border-gray-300', 'dark:border-gray-600')
-  }
+  const toggleInput = document.getElementById('includePageToggle');
+  toggleInput.checked = includePageContent;
 }
 
 function showPageStatus(text, isError = false) {
