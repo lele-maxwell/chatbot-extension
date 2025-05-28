@@ -23,6 +23,14 @@
             <div id="chat"></div>
         </main>
         <footer class="p-2 border-t border-gray-200 dark:border-gray-700">
+            <div class="flex gap-2 mb-2">
+                <button id="includePageToggle" 
+                    class="px-3 py-1 text-xs rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    title="Include current page content in the conversation">
+                    📄 Include Page
+                </button>
+                <span id="pageStatus" class="text-xs text-gray-500 dark:text-gray-400 py-1 hidden"></span>
+            </div>
             <input id="userInput"
                 class="w-full rounded-xl px-3 py-2 border dark:bg-gray-800 dark:text-white dark:border-gray-600"
                 placeholder="Ask something..." />
