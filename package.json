@@ -1,4 +1,20 @@
 {
+  "name": "maxaichat-firefox-extension",
+  "version": "1.0.0",
+  "description": "AI-powered chatbot Firefox extension with voice input, TTS, and conversation memory",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lele-maxwell/chatbot-extension.git"
+  },
+  "keywords": [
+    "firefox-extension",
+    "ai-chatbot",
+    "voice-input",
+    "text-to-speech",
+    "openai"
+  ],
+  "author": "Maxwell",
+  "license": "MIT",
   "devDependencies": {
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.3",
