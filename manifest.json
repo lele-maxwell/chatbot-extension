@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "AI Chatbot Assistant",
+    "name": "MaxAiChat",
     "version": "1.0",
-    "description": "Client-side chatbot powered by OpenAI-compatible APIs.",
+    "description": "AI-powered chatbot with voice input, TTS, and conversation memory. Powered by OpenAI-compatible APIs.",
     "permissions": [
       "storage",
       "activeTab",
@@ -21,5 +21,10 @@
     },
     "icons": {
       "128": "icons/icon128.png"
+    },
+    "browser_specific_settings": {
+      "gecko": {
+        "id": "maxaichat@example.com"
+      }
     }
 }
