@@ -173,6 +173,9 @@ function cleanAIResponse(response) {
   response = response.replace(/^I think\s+/i, '');
   response = response.replace(/^Let me\s+/i, '');
   response = response.replace(/^Based on\s+/i, '');
+  response = response.replace(/^To address your\s+/i, '');
+  response = response.replace(/^Here's a structured plan based on your thoughts:/i, 'Here are some fun ideas to try:');
+  response = response.replace(/^Here's a plan to help you:/i, 'Here are some fun ideas to try:');
   
   // Convert markdown formatting to plain text - do this BEFORE other formatting
   response = response.replace(/\*\*(.*?)\*\*/g, '$1'); // Remove bold markers
@@ -205,6 +208,17 @@ function cleanAIResponse(response) {
   response = response.replace(/^Here are some suggestions:/i, 'Here are some cool things you could do:');
   response = response.replace(/Feel free to ask for more ideas if you need them! I'm here to help\./i, 'Try one of these and let me know how it goes! 😊');
   response = response.replace(/What sounds interesting to you\?/i, 'Which one sounds fun to you? 😊');
+  
+  // Remove analytical and reasoning language
+  response = response.replace(/Remember, it's okay to feel bored sometimes\./gi, '');
+  response = response.replace(/Embrace it as an opportunity to explore new activities or simply relax\./gi, '');
+  response = response.replace(/Mix different activities to keep things interesting and engaging\./gi, '');
+  response = response.replace(/Enjoy your time!/gi, 'Have fun! 😊');
+  response = response.replace(/This can help energize you and provide a change of scenery\./gi, 'This can help energize you!');
+  response = response.replace(/This can be a fun way to express yourself and discover new interests\./gi, 'This can be a fun way to express yourself!');
+  response = response.replace(/This can be both engaging and educational\./gi, 'This can be both fun and educational!');
+  response = response.replace(/Socializing can lift your spirits and make the time pass enjoyably\./gi, 'Socializing can lift your spirits!');
+  response = response.replace(/Recognize that rest is important and can help alleviate boredom\./gi, 'Rest is important too!');
   
   // Add final spacing
   response = response.trim();
