@@ -122,7 +122,7 @@ input.addEventListener('keypress', async (e) => {
     }
 
     // Prepare the system message with page content if enabled
-    let systemMessage = 'You are a helpful assistant.'
+    let systemMessage = 'You are a helpful AI assistant. Provide direct, clear, and concise responses. Do not show your internal reasoning or thinking process. Respond naturally as if in a conversation.'
     if (includePageContent && window.scrapedContent) {
       systemMessage += `\n\nCurrent page content:\n${window.scrapedContent}`
     }
@@ -146,7 +146,11 @@ input.addEventListener('keypress', async (e) => {
       })
 
       const data = await res.json()
-      const botReply = data.choices?.[0]?.message?.content || 'No response'
+      let botReply = data.choices?.[0]?.message?.content || 'No response'
+      
+      // Clean the response to remove internal reasoning
+      botReply = cleanAIResponse(botReply)
+      
       appendMessage('bot', botReply)
     } catch (err) {
       console.error(err)
@@ -154,6 +158,27 @@ input.addEventListener('keypress', async (e) => {
     }
   }
 })
+
+// Function to clean AI response and remove internal reasoning
+function cleanAIResponse(response) {
+  if (!response) return response;
+  
+  // Remove <think> tags and their content
+  response = response.replace(/<think>.*?<\/think>/gs, '');
+  
+  // Remove any remaining XML-like tags that might contain reasoning
+  response = response.replace(/<[^>]*>/g, '');
+  
+  // Remove common reasoning patterns
+  response = response.replace(/^I think\s+/i, '');
+  response = response.replace(/^Let me\s+/i, '');
+  response = response.replace(/^Based on\s+/i, '');
+  
+  // Clean up extra whitespace and newlines
+  response = response.replace(/\n\s*\n/g, '\n').trim();
+  
+  return response;
+}
 
 function appendMessage(sender, text) {
   const msg = document.createElement('div')
@@ -208,37 +233,60 @@ let recognition = null;
 let lastResponse = null;
 let isRecording = false;
 
+// Add TTS toggle state
+let ttsEnabled = true;
+
+// Initialize TTS toggle button
+document.getElementById('ttsToggle').addEventListener('click', () => {
+    ttsEnabled = !ttsEnabled;
+    const ttsButton = document.getElementById('ttsToggle');
+    ttsButton.classList.toggle('active', ttsEnabled);
+    
+    // Show status message
+    showPageStatus(`Text-to-Speech ${ttsEnabled ? 'enabled' : 'disabled'}`, false);
+});
+
 // Initialize speech recognition
 function initSpeechRecognition() {
     if ('webkitSpeechRecognition' in window) {
         recognition = new webkitSpeechRecognition();
         recognition.continuous = false;
-        recognition.interimResults = false;
+        recognition.interimResults = true; // Enable interim results for better feedback
         
         recognition.onstart = () => {
             isRecording = true;
-            document.getElementById('micButton').classList.add('recording');
+            const micButton = document.getElementById('micButton');
+            micButton.classList.add('recording');
+            showPageStatus('Listening...', false);
         };
         
         recognition.onend = () => {
             isRecording = false;
-            document.getElementById('micButton').classList.remove('recording');
+            const micButton = document.getElementById('micButton');
+            micButton.classList.remove('recording');
+            showPageStatus('Voice input stopped', false);
         };
         
         recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
+            const transcript = Array.from(event.results)
+                .map(result => result[0].transcript)
+                .join('');
+            
+            // Update input field with interim results
             document.getElementById('userInput').value = transcript;
             
-            // Send the message using the existing input handler
-            const input = document.getElementById('userInput');
-            const enterEvent = new KeyboardEvent('keypress', {
-                key: 'Enter',
-                code: 'Enter',
-                keyCode: 13,
-                which: 13,
-                bubbles: true
-            });
-            input.dispatchEvent(enterEvent);
+            // If this is the final result, send the message
+            if (event.results[0].isFinal) {
+                const input = document.getElementById('userInput');
+                const enterEvent = new KeyboardEvent('keypress', {
+                    key: 'Enter',
+                    code: 'Enter',
+                    keyCode: 13,
+                    which: 13,
+                    bubbles: true
+                });
+                input.dispatchEvent(enterEvent);
+            }
         };
         
         recognition.onerror = (event) => {
@@ -246,17 +294,22 @@ function initSpeechRecognition() {
             isRecording = false;
             document.getElementById('micButton').classList.remove('recording');
             
-            // Show error message to user
             let errorMessage = 'Speech recognition error: ';
             switch(event.error) {
                 case 'no-speech':
-                    errorMessage += 'No speech was detected.';
+                    errorMessage += 'No speech was detected. Please try speaking again.';
                     break;
                 case 'audio-capture':
-                    errorMessage += 'No microphone was found.';
+                    errorMessage += 'No microphone was found. Please check your microphone connection.';
                     break;
                 case 'not-allowed':
-                    errorMessage += 'Permission to use microphone was denied.';
+                    errorMessage += 'Permission to use microphone was denied. Please allow microphone access in your browser settings.';
+                    break;
+                case 'aborted':
+                    errorMessage += 'Voice input was aborted. Please try again.';
+                    break;
+                case 'network':
+                    errorMessage += 'Network error occurred. Please check your internet connection.';
                     break;
                 default:
                     errorMessage += event.error;
@@ -265,43 +318,77 @@ function initSpeechRecognition() {
         };
     } else {
         console.error('Speech recognition not supported');
+        showPageStatus('Speech recognition is not supported in your browser.', true);
     }
 }
 
 // Initialize speech synthesis
 function initSpeechSynthesis() {
     if ('speechSynthesis' in window) {
-        // Set default voice
         const voices = speechSynthesis.getVoices();
-        const defaultVoice = voices.find(voice => voice.lang === 'en-US') || voices[0];
-        if (defaultVoice) {
-            window.speechSynthesis.defaultVoice = defaultVoice;
-        }
+        const languageSelect = document.getElementById('languageSelect');
+        
+        // Populate language selector
+        const languages = {
+            'en-US': 'English (US)',
+            'es-ES': 'Spanish',
+            'fr-FR': 'French',
+            'de-DE': 'German',
+            'it-IT': 'Italian',
+            'pt-BR': 'Portuguese',
+            'ru-RU': 'Russian',
+            'ja-JP': 'Japanese',
+            'zh-CN': 'Chinese'
+        };
+        
+        // Add language options
+        Object.entries(languages).forEach(([code, name]) => {
+            const option = document.createElement('option');
+            option.value = code;
+            option.textContent = name;
+            languageSelect.appendChild(option);
+        });
     }
 }
 
 // Speak text using TTS
 function speakText(text) {
-    if ('speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = document.getElementById('languageSelect').value;
-        utterance.rate = parseFloat(document.getElementById('speedSelect').value);
-        
-        const voices = speechSynthesis.getVoices();
-        const selectedVoice = voices.find(voice => voice.lang === utterance.lang) || voices[0];
-        if (selectedVoice) {
-            utterance.voice = selectedVoice;
-        }
-        
-        window.speechSynthesis.speak(utterance);
-    }
+    if (!('speechSynthesis' in window)) return;
+    
+    const language = document.getElementById('languageSelect').value;
+    const speed = parseFloat(document.getElementById('speedSelect').value);
+    
+    // Get available voices
+    const voices = speechSynthesis.getVoices();
+    
+    // Find a voice matching the selected language
+    const voice = voices.find(v => v.lang.startsWith(language)) || voices[0];
+    
+    // Create and configure speech
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.voice = voice;
+    utterance.rate = speed;
+    utterance.pitch = 1;
+    
+    // Speak the text
+    speechSynthesis.speak(utterance);
 }
 
-// Handle mic button events
-document.getElementById('micButton').addEventListener('mousedown', () => {
-    if (recognition && !isRecording) {
-        recognition.lang = document.getElementById('languageSelect').value;
-        recognition.start();
+// Handle mic button events with better feedback
+document.getElementById('micButton').addEventListener('mousedown', async () => {
+    if (!recognition) {
+        showPageStatus('Initializing speech recognition...', false);
+        initSpeechRecognition();
+    }
+    
+    if (!isRecording) {
+        try {
+            recognition.lang = document.getElementById('languageSelect').value;
+            recognition.start();
+        } catch (error) {
+            console.error('Error starting recognition:', error);
+            showPageStatus('Failed to start voice input. Please try again.', true);
+        }
     }
 });
 
@@ -342,151 +429,38 @@ document.getElementById('languageSelect').addEventListener('change', () => {
 
 // Handle replay button
 document.getElementById('replayButton').addEventListener('click', () => {
-    if (lastResponse) {
+    if (lastResponse && ttsEnabled) {
         speakText(lastResponse);
     }
 });
 
-// Modify the existing appendMessage function to include TTS
+// Modify the existing appendMessage function to respect TTS toggle
 const originalAppendMessage = appendMessage;
-appendMessage = (message, isUser = false) => {
-    originalAppendMessage(message, isUser);
+appendMessage = (sender, text) => {
+    originalAppendMessage(sender, text);
     
-    if (!isUser) {
-        lastResponse = message;
-        document.getElementById('replayButton').classList.add('visible');
-        speakText(message);
+    if (sender === 'bot') {
+        lastResponse = text;
+        document.getElementById('replayButton').style.display = 'block';
+        if (ttsEnabled) {
+            speakText(text);
+        }
     }
 };
 
-// Add permission handling
-async function checkMicrophonePermission() {
-    try {
-        // First check if we already have permission
-        const result = await navigator.permissions.query({ name: 'microphone' });
-        
-        if (result.state === 'granted') {
-            return true;
-        } else if (result.state === 'prompt') {
-            // Show a user-friendly message before requesting permission
-            showPageStatus('Click the microphone icon and allow access when prompted.', false);
-            return true; // Return true to allow the prompt to show
-        } else if (result.state === 'denied') {
-            showPageStatus('Microphone access is blocked. Please follow these steps:', true);
-            setTimeout(() => {
-                showPageStatus('1. Look at the top-right of your browser window', true);
-                setTimeout(() => {
-                    showPageStatus('2. Find the extension icon (puzzle piece) and click it', true);
-                    setTimeout(() => {
-                        showPageStatus('3. Click "Manage Extensions" in the dropdown menu', true);
-                        setTimeout(() => {
-                            showPageStatus('4. Find "MaxAiChat" in the list of extensions', true);
-                            setTimeout(() => {
-                                showPageStatus('5. Click "Details" under the extension', true);
-                                setTimeout(() => {
-                                    showPageStatus('6. Scroll down to "Site access" and change to "Allow"', true);
-                                }, 4000);
-                            }, 4000);
-                        }, 4000);
-                    }, 4000);
-                }, 4000);
-            }, 4000);
-            return false;
-        }
-    } catch (err) {
-        console.error('Microphone permission error:', err);
-        if (err.name === 'NotAllowedError') {
-            showPageStatus('Microphone access was denied. Please follow these steps:', true);
-            setTimeout(() => {
-                showPageStatus('1. Click the extension icon (puzzle piece) in the top-right', true);
-                setTimeout(() => {
-                    showPageStatus('2. Click "Manage Extensions"', true);
-                    setTimeout(() => {
-                        showPageStatus('3. Find "MaxAiChat" and click "Details"', true);
-                        setTimeout(() => {
-                            showPageStatus('4. Scroll to "Site access" and set to "Allow"', true);
-                        }, 4000);
-                    }, 4000);
-                }, 4000);
-            }, 4000);
-        } else {
-            showPageStatus('Error accessing microphone. Please check your browser settings.', true);
-        }
-        return false;
-    }
-}
-
-// Update the mic button click handler
-document.getElementById('micButton').addEventListener('click', async (e) => {
-    e.preventDefault();
-    if (!recognition) {
-        showPageStatus('Speech recognition is not supported in your browser.', true);
-        return;
-    }
+// Initialize voice features when the popup loads
+document.addEventListener('DOMContentLoaded', () => {
+    initSpeechRecognition();
+    initSpeechSynthesis();
     
-    if (!isRecording) {
-        try {
-            // Request permission directly through getUserMedia
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            stream.getTracks().forEach(track => track.stop());
-            
-            // If we get here, permission was granted
-            recognition.lang = document.getElementById('languageSelect').value;
-            recognition.start();
-        } catch (err) {
-            console.error('Microphone permission error:', err);
-            if (err.name === 'NotAllowedError') {
-                showPageStatus('Microphone access was denied. Please follow these steps:', true);
-                setTimeout(() => {
-                    showPageStatus('1. Click the extension icon (puzzle piece) in the top-right', true);
-                    setTimeout(() => {
-                        showPageStatus('2. Click "Manage Extensions"', true);
-                        setTimeout(() => {
-                            showPageStatus('3. Find "MaxAiChat" and click "Details"', true);
-                            setTimeout(() => {
-                                showPageStatus('4. Scroll to "Site access" and set to "Allow"', true);
-                            }, 4000);
-                        }, 4000);
-                    }, 4000);
-                }, 4000);
-            } else {
-                showPageStatus('Error accessing microphone. Please check your browser settings.', true);
-            }
-        }
-    } else {
-        try {
-            recognition.stop();
-        } catch (err) {
-            console.error('Error stopping recognition:', err);
-            showPageStatus('Error stopping voice recognition.', true);
-        }
-    }
-});
-
-// Add a function to check browser support
-function checkBrowserSupport() {
-    if (!('webkitSpeechRecognition' in window)) {
-        showPageStatus('Speech recognition is not supported in your browser. Please use Chrome.', true);
-        return false;
-    }
-    if (!('mediaDevices' in navigator)) {
-        showPageStatus('Microphone access is not supported in your browser. Please use Chrome.', true);
-        return false;
-    }
-    return true;
-}
-
-// Update the initialization
-document.addEventListener('DOMContentLoaded', async () => {
-    if (checkBrowserSupport()) {
-        initSpeechRecognition();
-        initSpeechSynthesis();
-        
-        // Load voices when they become available
-        if ('speechSynthesis' in window) {
-            speechSynthesis.onvoiceschanged = () => {
-                initSpeechSynthesis();
-            };
-        }
+    // Set initial TTS toggle state
+    const ttsButton = document.getElementById('ttsToggle');
+    ttsButton.classList.toggle('active', ttsEnabled);
+    
+    // Load voices when they become available
+    if ('speechSynthesis' in window) {
+        speechSynthesis.onvoiceschanged = () => {
+            initSpeechSynthesis();
+        };
     }
 });
