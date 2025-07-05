@@ -174,7 +174,7 @@ function cleanAIResponse(response) {
   response = response.replace(/^Let me\s+/i, '');
   response = response.replace(/^Based on\s+/i, '');
   
-  // Convert markdown formatting to plain text
+  // Convert markdown formatting to plain text - do this BEFORE other formatting
   response = response.replace(/\*\*(.*?)\*\*/g, '$1'); // Remove bold markers
   response = response.replace(/\*(.*?)\*/g, '$1'); // Remove italic markers
   response = response.replace(/`(.*?)`/g, '$1'); // Remove code markers
@@ -188,8 +188,8 @@ function cleanAIResponse(response) {
   response = response.replace(/([.!?])\s*•/g, '$1\n\n•'); // Add double line break before bullet points
   response = response.replace(/•\s*([^•\n]+?)(?=\n•|\n\n|$)/g, '• $1'); // Ensure proper spacing after bullet points
   
-  // Format category headers (like "Creative Expression:", "Physical Activities:")
-  response = response.replace(/([A-Z][a-z\s]+):\s*/g, '\n**$1:**\n');
+  // Format category headers (like "Creative:", "Body:", "New:") - WITHOUT adding markdown back
+  response = response.replace(/([A-Z][a-z\s]+):\s*/g, '\n$1:\n');
   
   // Clean up multiple newlines and ensure proper spacing
   response = response.replace(/\n\s*\n\s*\n/g, '\n\n'); // Remove excessive newlines
@@ -198,9 +198,13 @@ function cleanAIResponse(response) {
   // Make responses more conversational and friendly
   response = response.replace(/^Here are a few ideas:/i, 'Here are some fun ideas to try:');
   response = response.replace(/^Here are some ideas to help you overcome boredom:/i, 'Here are some fun ideas to beat boredom:');
+  response = response.replace(/^Here are some ideas to help you shake off boredom:/i, 'Here are some fun ideas to beat boredom:');
+  response = response.replace(/^If you're feeling bored, here are a few ideas to liven things up:/i, 'Here are some fun ideas to beat boredom:');
   response = response.replace(/^Hope these help!/i, 'Give one of these a try! 😊');
+  response = response.replace(/^Hope these ideas help you find something enjoyable to do!/i, 'Give one of these a try! 😊');
   response = response.replace(/^Here are some suggestions:/i, 'Here are some cool things you could do:');
   response = response.replace(/Feel free to ask for more ideas if you need them! I'm here to help\./i, 'Try one of these and let me know how it goes! 😊');
+  response = response.replace(/What sounds interesting to you\?/i, 'Which one sounds fun to you? 😊');
   
   // Add final spacing
   response = response.trim();
