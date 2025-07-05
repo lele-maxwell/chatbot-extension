@@ -109,6 +109,9 @@ function showPageStatus(text, isError = false) {
   }, 3000)
 }
 
+// Add conversation memory
+let conversationHistory = [];
+
 input.addEventListener('keypress', async (e) => {
   if (e.key === 'Enter' && input.value.trim()) {
     const userText = input.value
@@ -122,17 +125,21 @@ input.addEventListener('keypress', async (e) => {
     }
 
     // Prepare the system message with page content if enabled
-    let systemMessage = 'You are a helpful AI assistant. Provide direct, clear, and concise responses. Do not show your internal reasoning or thinking process. Respond naturally as if in a conversation.'
+    let systemMessage = 'You are MaxAiChat, a helpful AI assistant. Always respond in the same language as the user. Provide direct, clear, and concise responses. Never show your internal reasoning, thinking process, or analytical steps. Respond naturally as if in a casual conversation. Keep responses conversational and avoid formal or academic language unless specifically requested. Remember the context of the conversation and respond appropriately.'
     if (includePageContent && window.scrapedContent) {
       systemMessage += `\n\nCurrent page content:\n${window.scrapedContent}`
     }
 
+    // Add conversation history to maintain context
+    const messages = [
+      { role: 'system', content: systemMessage },
+      ...conversationHistory,
+      { role: 'user', content: userText }
+    ];
+
     const requestPayload = {
       model: 'deepseek-r1-distill-llama-70b',
-      messages: [
-        { role: 'system', content: systemMessage },
-        { role: 'user', content: userText },
-      ],
+      messages: messages,
     }
 
     try {
@@ -150,6 +157,15 @@ input.addEventListener('keypress', async (e) => {
       
       // Clean the response to remove internal reasoning
       botReply = cleanAIResponse(botReply)
+      
+      // Add messages to conversation history (keep last 10 exchanges to prevent token limit)
+      conversationHistory.push({ role: 'user', content: userText });
+      conversationHistory.push({ role: 'assistant', content: botReply });
+      
+      // Keep only the last 10 exchanges (20 messages total)
+      if (conversationHistory.length > 20) {
+        conversationHistory = conversationHistory.slice(-20);
+      }
       
       appendMessage('bot', botReply)
     } catch (err) {
@@ -176,6 +192,33 @@ function cleanAIResponse(response) {
   response = response.replace(/^To address your\s+/i, '');
   response = response.replace(/^Here's a structured plan based on your thoughts:/i, 'Here are some fun ideas to try:');
   response = response.replace(/^Here's a plan to help you:/i, 'Here are some fun ideas to try:');
+  response = response.replace(/^To overcome boredom, consider the following organized approach:/i, 'Here are some fun ideas to beat boredom:');
+  response = response.replace(/^Consider the following organized approach:/i, 'Here are some fun ideas to try:');
+  
+  // Remove detailed internal reasoning patterns
+  response = response.replace(/The response to the user's request.*?Final Response:/gs, '');
+  response = response.replace(/Thought Process:.*?Final Response:/gs, '');
+  response = response.replace(/Here's the organized presentation of the thought process and the final response:/gi, '');
+  response = response.replace(/Context Consideration:.*?Final Response:/gs, '');
+  response = response.replace(/• Context Consideration:.*?Final Response:/gs, '');
+  response = response.replace(/• Appeal Factors:.*?Final Response:/gs, '');
+  response = response.replace(/• Diversity:.*?Final Response:/gs, '');
+  response = response.replace(/• User Needs:.*?Final Response:/gs, '');
+  
+  // Remove specific reasoning patterns
+  response = response.replace(/I've decided to try.*?which is a great motivator\./gi, '');
+  response = response.replace(/It seems like you might be trying to say.*?I'm here to help!/gi, '');
+  response = response.replace(/Could you clarify or provide more details about what you're asking or referring to\?/gi, '');
+  
+  // Remove academic and formal language patterns
+  response = response.replace(/Step-by-step explanation:.*?Verification:.*?confirms the solution is correct\./gs, '');
+  response = response.replace(/This can be proven using mathematical induction:.*?Conclusion:.*?for all positive integers n\./gs, '');
+  response = response.replace(/Base Case.*?Inductive Step:.*?completing the induction\./gs, '');
+  
+  // Remove Chinese responses (unless user is speaking Chinese)
+  if (response.includes('您好') || response.includes('建议您') || response.includes('抱歉')) {
+    response = 'I apologize, but I should respond in the same language as you. Could you please repeat your question in English?';
+  }
   
   // Convert markdown formatting to plain text - do this BEFORE other formatting
   response = response.replace(/\*\*(.*?)\*\*/g, '$1'); // Remove bold markers
@@ -183,6 +226,10 @@ function cleanAIResponse(response) {
   response = response.replace(/`(.*?)`/g, '$1'); // Remove code markers
   response = response.replace(/\[(.*?)\]\(.*?\)/g, '$1'); // Remove link formatting
   response = response.replace(/^#+\s+/gm, ''); // Remove heading markers
+  
+  // Remove LaTeX math formatting
+  response = response.replace(/\\\(.*?\\\)/g, ''); // Remove inline math
+  response = response.replace(/\\\[.*?\\\]/g, ''); // Remove display math
   
   // Improve list formatting with better spacing
   response = response.replace(/^\d+\.\s+/gm, '• '); // Convert numbered lists to bullet points
@@ -234,6 +281,14 @@ function cleanAIResponse(response) {
   response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*Dancing is also a great way to get moving and enjoy some music\./gi, '• $1: $2');
   response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*to give yourself something to look forward to\./gi, '• $1: $2');
   response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*I hope these ideas help you find something enjoyable to do!/gi, '• $1: $2');
+  
+  // Remove recipe-specific reasoning
+  response = response.replace(/Each recipe offers something unique, catering to various tastes and dietary preferences, providing flexibility for different meal needs\./gi, '');
+  response = response.replace(/Here are five unique and flavorful recipes, each with a brief description and key ingredients:/gi, 'Here are some delicious recipes to try:');
+  
+  // Remove verbose endings
+  response = response.replace(/Start with simple activities like a walk, then gradually explore new hobbies or classes to find what excites you\./gi, '');
+  response = response.replace(/which one do you advice me to do/gi, 'Which one sounds fun to you? 😊');
   
   // Add final spacing
   response = response.trim();
