@@ -174,8 +174,36 @@ function cleanAIResponse(response) {
   response = response.replace(/^Let me\s+/i, '');
   response = response.replace(/^Based on\s+/i, '');
   
-  // Clean up extra whitespace and newlines
-  response = response.replace(/\n\s*\n/g, '\n').trim();
+  // Convert markdown formatting to plain text
+  response = response.replace(/\*\*(.*?)\*\*/g, '$1'); // Remove bold markers
+  response = response.replace(/\*(.*?)\*/g, '$1'); // Remove italic markers
+  response = response.replace(/`(.*?)`/g, '$1'); // Remove code markers
+  response = response.replace(/\[(.*?)\]\(.*?\)/g, '$1'); // Remove link formatting
+  response = response.replace(/^#+\s+/gm, ''); // Remove heading markers
+  
+  // Improve list formatting with better spacing
+  response = response.replace(/^\d+\.\s+/gm, '• '); // Convert numbered lists to bullet points
+  
+  // Add proper spacing around bullet points
+  response = response.replace(/([.!?])\s*•/g, '$1\n\n•'); // Add double line break before bullet points
+  response = response.replace(/•\s*([^•\n]+?)(?=\n•|\n\n|$)/g, '• $1'); // Ensure proper spacing after bullet points
+  
+  // Format category headers (like "Creative Expression:", "Physical Activities:")
+  response = response.replace(/([A-Z][a-z\s]+):\s*/g, '\n**$1:**\n');
+  
+  // Clean up multiple newlines and ensure proper spacing
+  response = response.replace(/\n\s*\n\s*\n/g, '\n\n'); // Remove excessive newlines
+  response = response.replace(/\n{3,}/g, '\n\n'); // Limit to max 2 consecutive newlines
+  
+  // Make responses more conversational and friendly
+  response = response.replace(/^Here are a few ideas:/i, 'Here are some fun ideas to try:');
+  response = response.replace(/^Here are some ideas to help you overcome boredom:/i, 'Here are some fun ideas to beat boredom:');
+  response = response.replace(/^Hope these help!/i, 'Give one of these a try! 😊');
+  response = response.replace(/^Here are some suggestions:/i, 'Here are some cool things you could do:');
+  response = response.replace(/Feel free to ask for more ideas if you need them! I'm here to help\./i, 'Try one of these and let me know how it goes! 😊');
+  
+  // Add final spacing
+  response = response.trim();
   
   return response;
 }
