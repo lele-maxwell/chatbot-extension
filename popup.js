@@ -416,6 +416,9 @@ function initSpeechSynthesis() {
 function speakText(text) {
     if (!('speechSynthesis' in window)) return;
     
+    // Stop any current speech to prevent overlapping
+    speechSynthesis.cancel();
+    
     const language = document.getElementById('languageSelect').value;
     const speed = parseFloat(document.getElementById('speedSelect').value);
     
@@ -425,14 +428,63 @@ function speakText(text) {
     // Find a voice matching the selected language
     const voice = voices.find(v => v.lang.startsWith(language)) || voices[0];
     
-    // Create and configure speech
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.voice = voice;
-    utterance.rate = speed;
-    utterance.pitch = 1;
+    // Split long text into smaller chunks if needed
+    const maxChunkLength = 200; // Maximum characters per chunk
+    const textChunks = [];
     
-    // Speak the text
-    speechSynthesis.speak(utterance);
+    if (text.length > maxChunkLength) {
+        // Split by sentences first, then by words if needed
+        const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+        let currentChunk = '';
+        
+        for (const sentence of sentences) {
+            if ((currentChunk + sentence).length > maxChunkLength && currentChunk.length > 0) {
+                textChunks.push(currentChunk.trim());
+                currentChunk = sentence;
+            } else {
+                currentChunk += (currentChunk ? '. ' : '') + sentence;
+            }
+        }
+        
+        if (currentChunk.trim()) {
+            textChunks.push(currentChunk.trim());
+        }
+    } else {
+        textChunks.push(text);
+    }
+    
+    // Speak each chunk sequentially
+    let currentChunkIndex = 0;
+    
+    function speakNextChunk() {
+        if (currentChunkIndex < textChunks.length) {
+            const chunk = textChunks[currentChunkIndex];
+            
+            // Create and configure speech
+            const utterance = new SpeechSynthesisUtterance(chunk);
+            utterance.voice = voice;
+            utterance.rate = speed;
+            utterance.pitch = 1;
+            
+            // Add event listeners for this chunk
+            utterance.onend = () => {
+                currentChunkIndex++;
+                speakNextChunk(); // Speak the next chunk
+            };
+            
+            utterance.onerror = (event) => {
+                console.error('TTS error:', event);
+                currentChunkIndex++;
+                speakNextChunk(); // Continue with next chunk even if there's an error
+            };
+            
+            // Speak the current chunk
+            speechSynthesis.speak(utterance);
+        }
+    }
+    
+    // Start speaking the first chunk
+    speakNextChunk();
 }
 
 // Handle mic button events with better feedback
@@ -504,7 +556,10 @@ appendMessage = (sender, text) => {
         lastResponse = text;
         document.getElementById('replayButton').style.display = 'block';
         if (ttsEnabled) {
-            speakText(text);
+            // Add a small delay to ensure the message is fully displayed before speaking
+            setTimeout(() => {
+                speakText(text);
+            }, 100);
         }
     }
 };
