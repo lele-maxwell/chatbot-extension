@@ -109,6 +109,9 @@ function showPageStatus(text, isError = false) {
   }, 3000)
 }
 
+// Add conversation memory
+let conversationHistory = [];
+
 input.addEventListener('keypress', async (e) => {
   if (e.key === 'Enter' && input.value.trim()) {
     const userText = input.value
@@ -122,17 +125,21 @@ input.addEventListener('keypress', async (e) => {
     }
 
     // Prepare the system message with page content if enabled
-    let systemMessage = 'You are a helpful assistant.'
+    let systemMessage = 'You are MaxAiChat, a helpful AI assistant. Always respond in the same language as the user. Provide direct, clear, and concise responses. Never show your internal reasoning, thinking process, or analytical steps. Respond naturally as if in a casual conversation. Keep responses conversational and avoid formal or academic language unless specifically requested. Remember the context of the conversation and respond appropriately.'
     if (includePageContent && window.scrapedContent) {
       systemMessage += `\n\nCurrent page content:\n${window.scrapedContent}`
     }
 
+    // Add conversation history to maintain context
+    const messages = [
+      { role: 'system', content: systemMessage },
+      ...conversationHistory,
+      { role: 'user', content: userText }
+    ];
+
     const requestPayload = {
       model: 'deepseek-r1-distill-llama-70b',
-      messages: [
-        { role: 'system', content: systemMessage },
-        { role: 'user', content: userText },
-      ],
+      messages: messages,
     }
 
     try {
@@ -146,7 +153,20 @@ input.addEventListener('keypress', async (e) => {
       })
 
       const data = await res.json()
-      const botReply = data.choices?.[0]?.message?.content || 'No response'
+      let botReply = data.choices?.[0]?.message?.content || 'No response'
+      
+      // Clean the response to remove internal reasoning
+      botReply = cleanAIResponse(botReply)
+      
+      // Add messages to conversation history (keep last 10 exchanges to prevent token limit)
+      conversationHistory.push({ role: 'user', content: userText });
+      conversationHistory.push({ role: 'assistant', content: botReply });
+      
+      // Keep only the last 10 exchanges (20 messages total)
+      if (conversationHistory.length > 20) {
+        conversationHistory = conversationHistory.slice(-20);
+      }
+      
       appendMessage('bot', botReply)
     } catch (err) {
       console.error(err)
@@ -154,6 +174,102 @@ input.addEventListener('keypress', async (e) => {
     }
   }
 })
+
+// Function to clean AI response and remove internal reasoning
+function cleanAIResponse(response) {
+  if (!response) return response;
+  
+  // Define cleaning rules in a maintainable structure
+  const cleaningRules = [
+    // High-priority: Remove internal reasoning tags
+    { pattern: /<think>.*?<\/think>/gs, replacement: '', description: 'Remove think tags' },
+    { pattern: /<[^>]*>/g, replacement: '', description: 'Remove XML tags' },
+    
+    // Remove common reasoning patterns
+    { pattern: /^I think\s+/i, replacement: '', description: 'Remove "I think" prefix' },
+    { pattern: /^Let me\s+/i, replacement: '', description: 'Remove "Let me" prefix' },
+    { pattern: /^Based on\s+/i, replacement: '', description: 'Remove "Based on" prefix' },
+    { pattern: /^To address your\s+/i, replacement: '', description: 'Remove "To address your" prefix' },
+    
+    // Remove detailed internal reasoning patterns
+    { pattern: /The response to the user's request.*?Final Response:/gs, replacement: '', description: 'Remove response analysis' },
+    { pattern: /Thought Process:.*?Final Response:/gs, replacement: '', description: 'Remove thought process' },
+    { pattern: /Here's the organized presentation of the thought process and the final response:/gi, replacement: '', description: 'Remove process description' },
+    { pattern: /Context Consideration:.*?Final Response:/gs, replacement: '', description: 'Remove context analysis' },
+    
+    // Remove academic and formal language patterns
+    { pattern: /Step-by-step explanation:.*?Verification:.*?confirms the solution is correct\./gs, replacement: '', description: 'Remove step-by-step explanations' },
+    { pattern: /This can be proven using mathematical induction:.*?Conclusion:.*?for all positive integers n\./gs, replacement: '', description: 'Remove mathematical proofs' },
+    { pattern: /Base Case.*?Inductive Step:.*?completing the induction\./gs, replacement: '', description: 'Remove induction proofs' },
+    
+    // Convert markdown formatting to plain text
+    { pattern: /\*\*(.*?)\*\*/g, replacement: '$1', description: 'Remove bold markers' },
+    { pattern: /\*(.*?)\*/g, replacement: '$1', description: 'Remove italic markers' },
+    { pattern: /`(.*?)`/g, replacement: '$1', description: 'Remove code markers' },
+    { pattern: /\[(.*?)\]\(.*?\)/g, replacement: '$1', description: 'Remove link formatting' },
+    { pattern: /^#+\s+/gm, replacement: '', description: 'Remove heading markers' },
+    
+    // Remove LaTeX math formatting
+    { pattern: /\\\(.*?\\\)/g, replacement: '', description: 'Remove inline math' },
+    { pattern: /\\\[.*?\\\]/g, replacement: '', description: 'Remove display math' },
+    
+    // Improve list formatting
+    { pattern: /^\d+\.\s+/gm, replacement: '• ', description: 'Convert numbered lists to bullet points' },
+    
+    // Add proper spacing around bullet points
+    { pattern: /([.!?])\s*•/g, replacement: '$1\n\n•', description: 'Add line breaks before bullet points' },
+    { pattern: /([^•\n])\s*•/g, replacement: '$1\n\n•', description: 'Add line breaks before bullet points' },
+    
+    // Format category headers
+    { pattern: /([A-Z][a-z\s]+):\s*/g, replacement: '\n$1:\n', description: 'Format category headers' },
+    
+    // Ensure each bullet point is on its own line
+    { pattern: /•\s*([^•\n]+?)(?=\n•|\n\n|$)/g, replacement: '• $1\n', description: 'Add line breaks after bullet points' },
+    
+    // Clean up multiple newlines
+    { pattern: /\n\s*\n\s*\n/g, replacement: '\n\n', description: 'Remove excessive newlines' },
+    { pattern: /\n{3,}/g, replacement: '\n\n', description: 'Limit consecutive newlines' },
+    
+    // Make responses more conversational
+    { pattern: /^Here are a few ideas:/i, replacement: 'Here are some fun ideas to try:', description: 'Improve response tone' },
+    { pattern: /^Here are some ideas to help you overcome boredom:/i, replacement: 'Here are some fun ideas to beat boredom:', description: 'Improve response tone' },
+    { pattern: /^Here are some ideas to help you shake off boredom:/i, replacement: 'Here are some fun ideas to beat boredom:', description: 'Improve response tone' },
+    { pattern: /^If you're feeling bored, here are a few ideas to liven things up:/i, replacement: 'Here are some fun ideas to beat boredom:', description: 'Improve response tone' },
+    { pattern: /^Hope these help!/i, replacement: 'Give one of these a try! 😊', description: 'Improve response tone' },
+    { pattern: /^Hope these ideas help you find something enjoyable to do!/i, replacement: 'Give one of these a try! 😊', description: 'Improve response tone' },
+    { pattern: /^I hope these ideas help you find something enjoyable to do!/i, replacement: 'Give one of these a try! 😊', description: 'Improve response tone' },
+    { pattern: /^Here are some suggestions:/i, replacement: 'Here are some cool things you could do:', description: 'Improve response tone' },
+    { pattern: /Feel free to ask for more ideas if you need them! I'm here to help\./i, replacement: 'Try one of these and let me know how it goes! 😊', description: 'Improve response tone' },
+    { pattern: /What sounds interesting to you\?/i, replacement: 'Which one sounds fun to you? 😊', description: 'Improve response tone' },
+    
+    // Remove analytical and reasoning language
+    { pattern: /Remember, it's okay to feel bored sometimes\./gi, replacement: '', description: 'Remove philosophical statements' },
+    { pattern: /Embrace it as an opportunity to explore new activities or simply relax\./gi, replacement: '', description: 'Remove philosophical statements' },
+    { pattern: /Mix different activities to keep things interesting and engaging\./gi, replacement: '', description: 'Remove analytical language' },
+    { pattern: /Enjoy your time!/gi, replacement: 'Have fun! 😊', description: 'Improve response tone' },
+    
+    // Remove verbose explanations
+    { pattern: /Start with simple activities like a walk, then gradually explore new hobbies or classes to find what excites you\./gi, replacement: '', description: 'Remove verbose endings' },
+    { pattern: /which one do you advice me to do/gi, replacement: 'Which one sounds fun to you? 😊', description: 'Improve response tone' },
+  ];
+  
+  // Apply rules based on context
+  let cleaned = response;
+  
+  // Check if response contains Chinese characters (but don't force English)
+  const hasChinese = /[\u4e00-\u9fff]/.test(response);
+  
+  for (const rule of cleaningRules) {
+    // Skip language-specific rules that might interfere with Chinese responses
+    if (hasChinese && rule.description.includes('Remove Chinese responses')) {
+      continue;
+    }
+    
+    cleaned = cleaned.replace(rule.pattern, rule.replacement);
+  }
+  
+  return cleaned.trim();
+}
 
 function appendMessage(sender, text) {
   const msg = document.createElement('div')
@@ -208,37 +324,72 @@ let recognition = null;
 let lastResponse = null;
 let isRecording = false;
 
+// Add TTS toggle state
+let ttsEnabled = true;
+
+// Initialize TTS toggle button
+document.getElementById('ttsToggle').addEventListener('click', () => {
+    ttsEnabled = !ttsEnabled;
+    const ttsButton = document.getElementById('ttsToggle');
+    ttsButton.classList.toggle('active', ttsEnabled);
+    
+    // Show status message
+    showPageStatus(`Text-to-Speech ${ttsEnabled ? 'enabled' : 'disabled'}`, false);
+});
+
 // Initialize speech recognition
 function initSpeechRecognition() {
+    console.log('Initializing speech recognition...');
+    
     if ('webkitSpeechRecognition' in window) {
         recognition = new webkitSpeechRecognition();
         recognition.continuous = false;
-        recognition.interimResults = false;
+        recognition.interimResults = true; // Enable interim results for better feedback
+        recognition.maxAlternatives = 1;
+        
+        console.log('Speech recognition object created');
         
         recognition.onstart = () => {
+            console.log('Speech recognition started - listening...');
             isRecording = true;
-            document.getElementById('micButton').classList.add('recording');
+            const micButton = document.getElementById('micButton');
+            micButton.classList.add('recording');
+            showPageStatus('Listening... Speak now!', false);
         };
         
         recognition.onend = () => {
+            console.log('Speech recognition ended');
             isRecording = false;
-            document.getElementById('micButton').classList.remove('recording');
+            const micButton = document.getElementById('micButton');
+            micButton.classList.remove('recording');
+            showPageStatus('Voice input stopped', false);
         };
         
         recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
+            console.log('Speech recognition result received:', event.results);
+            
+            const transcript = Array.from(event.results)
+                .map(result => result[0].transcript)
+                .join('');
+            
+            console.log('Transcript:', transcript);
+            
+            // Update input field with interim results
             document.getElementById('userInput').value = transcript;
             
-            // Send the message using the existing input handler
-            const input = document.getElementById('userInput');
-            const enterEvent = new KeyboardEvent('keypress', {
-                key: 'Enter',
-                code: 'Enter',
-                keyCode: 13,
-                which: 13,
-                bubbles: true
-            });
-            input.dispatchEvent(enterEvent);
+            // If this is the final result, send the message
+            if (event.results[0].isFinal) {
+                console.log('Final transcript:', transcript);
+                const input = document.getElementById('userInput');
+                const enterEvent = new KeyboardEvent('keypress', {
+                    key: 'Enter',
+                    code: 'Enter',
+                    keyCode: 13,
+                    which: 13,
+                    bubbles: true
+                });
+                input.dispatchEvent(enterEvent);
+            }
         };
         
         recognition.onerror = (event) => {
@@ -246,73 +397,210 @@ function initSpeechRecognition() {
             isRecording = false;
             document.getElementById('micButton').classList.remove('recording');
             
-            // Show error message to user
             let errorMessage = 'Speech recognition error: ';
             switch(event.error) {
                 case 'no-speech':
-                    errorMessage += 'No speech was detected.';
+                    errorMessage += 'No speech was detected. Please try speaking again.';
                     break;
                 case 'audio-capture':
-                    errorMessage += 'No microphone was found.';
+                    errorMessage += 'No microphone was found. Please check your microphone connection.';
                     break;
                 case 'not-allowed':
-                    errorMessage += 'Permission to use microphone was denied.';
+                    errorMessage += 'Permission to use microphone was denied. Please allow microphone access in your browser settings.';
+                    break;
+                case 'aborted':
+                    errorMessage += 'Voice input was aborted. Please try again.';
+                    break;
+                case 'network':
+                    errorMessage += 'Network error occurred. Please check your internet connection.';
                     break;
                 default:
                     errorMessage += event.error;
             }
             showPageStatus(errorMessage, true);
         };
+        
+        console.log('Speech recognition initialized successfully');
     } else {
-        console.error('Speech recognition not supported');
+        console.error('Speech recognition not supported in this browser');
+        showPageStatus('Speech recognition is not supported in your browser. Please use Chrome.', true);
     }
 }
 
 // Initialize speech synthesis
 function initSpeechSynthesis() {
     if ('speechSynthesis' in window) {
-        // Set default voice
         const voices = speechSynthesis.getVoices();
-        const defaultVoice = voices.find(voice => voice.lang === 'en-US') || voices[0];
-        if (defaultVoice) {
-            window.speechSynthesis.defaultVoice = defaultVoice;
-        }
+        const languageSelect = document.getElementById('languageSelect');
+        
+        // Populate language selector
+        const languages = {
+            'en-US': 'English (US)',
+            'es-ES': 'Spanish',
+            'fr-FR': 'French',
+            'de-DE': 'German',
+            'it-IT': 'Italian',
+            'pt-BR': 'Portuguese',
+            'ru-RU': 'Russian',
+            'ja-JP': 'Japanese',
+            'zh-CN': 'Chinese'
+        };
+        
+        // Add language options
+        Object.entries(languages).forEach(([code, name]) => {
+            const option = document.createElement('option');
+            option.value = code;
+            option.textContent = name;
+            languageSelect.appendChild(option);
+        });
     }
 }
 
 // Speak text using TTS
 function speakText(text) {
-    if ('speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = document.getElementById('languageSelect').value;
-        utterance.rate = parseFloat(document.getElementById('speedSelect').value);
+    if (!('speechSynthesis' in window)) return;
+    
+    // Stop any current speech to prevent overlapping
+    speechSynthesis.cancel();
+    
+    const language = document.getElementById('languageSelect').value;
+    const speed = parseFloat(document.getElementById('speedSelect').value);
+    
+    // Get available voices
+    const voices = speechSynthesis.getVoices();
+    
+    // Find a voice matching the selected language
+    const voice = voices.find(v => v.lang.startsWith(language)) || voices[0];
+    
+    // Split long text into smaller chunks if needed
+    const maxChunkLength = 200; // Maximum characters per chunk
+    const textChunks = [];
+    
+    if (text.length > maxChunkLength) {
+        // Split by sentences first, then by words if needed
+        const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+        let currentChunk = '';
         
-        const voices = speechSynthesis.getVoices();
-        const selectedVoice = voices.find(voice => voice.lang === utterance.lang) || voices[0];
-        if (selectedVoice) {
-            utterance.voice = selectedVoice;
+        for (const sentence of sentences) {
+            if ((currentChunk + sentence).length > maxChunkLength && currentChunk.length > 0) {
+                textChunks.push(currentChunk.trim());
+                currentChunk = sentence;
+            } else {
+                currentChunk += (currentChunk ? '. ' : '') + sentence;
+            }
         }
         
-        window.speechSynthesis.speak(utterance);
+        if (currentChunk.trim()) {
+            textChunks.push(currentChunk.trim());
+        }
+    } else {
+        textChunks.push(text);
     }
+    
+    // Speak each chunk sequentially
+    let currentChunkIndex = 0;
+    
+    function speakNextChunk() {
+        if (currentChunkIndex < textChunks.length) {
+            const chunk = textChunks[currentChunkIndex];
+            
+            // Create and configure speech
+            const utterance = new SpeechSynthesisUtterance(chunk);
+            utterance.voice = voice;
+            utterance.rate = speed;
+            utterance.pitch = 1;
+            
+            // Add event listeners for this chunk
+            utterance.onend = () => {
+                currentChunkIndex++;
+                speakNextChunk(); // Speak the next chunk
+            };
+            
+            utterance.onerror = (event) => {
+                console.error('TTS error:', event);
+                currentChunkIndex++;
+                speakNextChunk(); // Continue with next chunk even if there's an error
+            };
+            
+            // Speak the current chunk
+            speechSynthesis.speak(utterance);
+        }
+    }
+    
+    // Start speaking the first chunk
+    speakNextChunk();
 }
 
-// Handle mic button events
-document.getElementById('micButton').addEventListener('mousedown', () => {
-    if (recognition && !isRecording) {
-        recognition.lang = document.getElementById('languageSelect').value;
-        recognition.start();
+// Add microphone test function
+function testMicrophone() {
+    console.log('Testing microphone access...');
+    
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showPageStatus('Microphone access not supported in this browser', true);
+        return;
+    }
+    
+    navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+            console.log('Microphone access granted!');
+            showPageStatus('Microphone is working! ✅', false);
+            // Stop the stream immediately
+            stream.getTracks().forEach(track => track.stop());
+        })
+        .catch(err => {
+            console.error('Microphone access error:', err);
+            let errorMsg = 'Microphone access failed: ';
+            
+            if (err.name === 'NotAllowedError') {
+                errorMsg += 'Permission denied. Please allow microphone access in your browser settings.';
+            } else if (err.name === 'NotFoundError') {
+                errorMsg += 'No microphone found. Please check your microphone connection.';
+            } else if (err.name === 'NotReadableError') {
+                errorMsg += 'Microphone is in use by another application.';
+            } else {
+                errorMsg += err.message;
+            }
+            
+            showPageStatus(errorMsg, true);
+        });
+}
+
+// Handle mic button events with better feedback
+document.getElementById('micButton').addEventListener('mousedown', async () => {
+    console.log('Microphone button pressed');
+    
+    if (!recognition) {
+        showPageStatus('Initializing speech recognition...', false);
+        initSpeechRecognition();
+        return; // Wait for initialization
+    }
+    
+    if (!isRecording) {
+        try {
+            // Test microphone access first
+            testMicrophone();
+            
+            const selectedLang = document.getElementById('languageSelect').value;
+            console.log('Starting voice recognition with language:', selectedLang);
+            recognition.lang = selectedLang;
+            recognition.start();
+        } catch (error) {
+            console.error('Error starting recognition:', error);
+            showPageStatus('Failed to start voice input. Please try again.', true);
+        }
     }
 });
 
 document.getElementById('micButton').addEventListener('mouseup', () => {
     if (recognition && isRecording) {
+        console.log('Stopping voice recognition');
         recognition.stop();
     }
 });
 
 document.getElementById('micButton').addEventListener('mouseleave', () => {
     if (recognition && isRecording) {
+        console.log('Stopping voice recognition (mouse left)');
         recognition.stop();
     }
 });
@@ -320,15 +608,54 @@ document.getElementById('micButton').addEventListener('mouseleave', () => {
 // Add touch events for mobile support
 document.getElementById('micButton').addEventListener('touchstart', (e) => {
     e.preventDefault();
-    if (recognition && !isRecording) {
-        recognition.lang = document.getElementById('languageSelect').value;
-        recognition.start();
+    if (!recognition) {
+        showPageStatus('Initializing speech recognition...', false);
+        initSpeechRecognition();
+        return;
+    }
+    
+    if (!isRecording) {
+        try {
+            const selectedLang = document.getElementById('languageSelect').value;
+            console.log('Starting voice recognition (touch) with language:', selectedLang);
+            recognition.lang = selectedLang;
+            recognition.start();
+        } catch (error) {
+            console.error('Error starting recognition (touch):', error);
+            showPageStatus('Failed to start voice input. Please try again.', true);
+        }
     }
 });
 
 document.getElementById('micButton').addEventListener('touchend', (e) => {
     e.preventDefault();
     if (recognition && isRecording) {
+        console.log('Stopping voice recognition (touch end)');
+        recognition.stop();
+    }
+});
+
+// Add click event as fallback
+document.getElementById('micButton').addEventListener('click', (e) => {
+    e.preventDefault();
+    if (!recognition) {
+        showPageStatus('Initializing speech recognition...', false);
+        initSpeechRecognition();
+        return;
+    }
+    
+    if (!isRecording) {
+        try {
+            const selectedLang = document.getElementById('languageSelect').value;
+            console.log('Starting voice recognition (click) with language:', selectedLang);
+            recognition.lang = selectedLang;
+            recognition.start();
+        } catch (error) {
+            console.error('Error starting recognition (click):', error);
+            showPageStatus('Failed to start voice input. Please try again.', true);
+        }
+    } else {
+        console.log('Stopping voice recognition (click)');
         recognition.stop();
     }
 });
@@ -342,151 +669,41 @@ document.getElementById('languageSelect').addEventListener('change', () => {
 
 // Handle replay button
 document.getElementById('replayButton').addEventListener('click', () => {
-    if (lastResponse) {
+    if (lastResponse && ttsEnabled) {
         speakText(lastResponse);
     }
 });
 
-// Modify the existing appendMessage function to include TTS
+// Modify the existing appendMessage function to respect TTS toggle
 const originalAppendMessage = appendMessage;
-appendMessage = (message, isUser = false) => {
-    originalAppendMessage(message, isUser);
+appendMessage = (sender, text) => {
+    originalAppendMessage(sender, text);
     
-    if (!isUser) {
-        lastResponse = message;
-        document.getElementById('replayButton').classList.add('visible');
-        speakText(message);
+    if (sender === 'bot') {
+        lastResponse = text;
+        document.getElementById('replayButton').style.display = 'block';
+        if (ttsEnabled) {
+            // Add a small delay to ensure the message is fully displayed before speaking
+            setTimeout(() => {
+                speakText(text);
+            }, 100);
+        }
     }
 };
 
-// Add permission handling
-async function checkMicrophonePermission() {
-    try {
-        // First check if we already have permission
-        const result = await navigator.permissions.query({ name: 'microphone' });
-        
-        if (result.state === 'granted') {
-            return true;
-        } else if (result.state === 'prompt') {
-            // Show a user-friendly message before requesting permission
-            showPageStatus('Click the microphone icon and allow access when prompted.', false);
-            return true; // Return true to allow the prompt to show
-        } else if (result.state === 'denied') {
-            showPageStatus('Microphone access is blocked. Please follow these steps:', true);
-            setTimeout(() => {
-                showPageStatus('1. Look at the top-right of your browser window', true);
-                setTimeout(() => {
-                    showPageStatus('2. Find the extension icon (puzzle piece) and click it', true);
-                    setTimeout(() => {
-                        showPageStatus('3. Click "Manage Extensions" in the dropdown menu', true);
-                        setTimeout(() => {
-                            showPageStatus('4. Find "MaxAiChat" in the list of extensions', true);
-                            setTimeout(() => {
-                                showPageStatus('5. Click "Details" under the extension', true);
-                                setTimeout(() => {
-                                    showPageStatus('6. Scroll down to "Site access" and change to "Allow"', true);
-                                }, 4000);
-                            }, 4000);
-                        }, 4000);
-                    }, 4000);
-                }, 4000);
-            }, 4000);
-            return false;
-        }
-    } catch (err) {
-        console.error('Microphone permission error:', err);
-        if (err.name === 'NotAllowedError') {
-            showPageStatus('Microphone access was denied. Please follow these steps:', true);
-            setTimeout(() => {
-                showPageStatus('1. Click the extension icon (puzzle piece) in the top-right', true);
-                setTimeout(() => {
-                    showPageStatus('2. Click "Manage Extensions"', true);
-                    setTimeout(() => {
-                        showPageStatus('3. Find "MaxAiChat" and click "Details"', true);
-                        setTimeout(() => {
-                            showPageStatus('4. Scroll to "Site access" and set to "Allow"', true);
-                        }, 4000);
-                    }, 4000);
-                }, 4000);
-            }, 4000);
-        } else {
-            showPageStatus('Error accessing microphone. Please check your browser settings.', true);
-        }
-        return false;
-    }
-}
-
-// Update the mic button click handler
-document.getElementById('micButton').addEventListener('click', async (e) => {
-    e.preventDefault();
-    if (!recognition) {
-        showPageStatus('Speech recognition is not supported in your browser.', true);
-        return;
-    }
+// Initialize voice features when the popup loads
+document.addEventListener('DOMContentLoaded', () => {
+    initSpeechRecognition();
+    initSpeechSynthesis();
     
-    if (!isRecording) {
-        try {
-            // Request permission directly through getUserMedia
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            stream.getTracks().forEach(track => track.stop());
-            
-            // If we get here, permission was granted
-            recognition.lang = document.getElementById('languageSelect').value;
-            recognition.start();
-        } catch (err) {
-            console.error('Microphone permission error:', err);
-            if (err.name === 'NotAllowedError') {
-                showPageStatus('Microphone access was denied. Please follow these steps:', true);
-                setTimeout(() => {
-                    showPageStatus('1. Click the extension icon (puzzle piece) in the top-right', true);
-                    setTimeout(() => {
-                        showPageStatus('2. Click "Manage Extensions"', true);
-                        setTimeout(() => {
-                            showPageStatus('3. Find "MaxAiChat" and click "Details"', true);
-                            setTimeout(() => {
-                                showPageStatus('4. Scroll to "Site access" and set to "Allow"', true);
-                            }, 4000);
-                        }, 4000);
-                    }, 4000);
-                }, 4000);
-            } else {
-                showPageStatus('Error accessing microphone. Please check your browser settings.', true);
-            }
-        }
-    } else {
-        try {
-            recognition.stop();
-        } catch (err) {
-            console.error('Error stopping recognition:', err);
-            showPageStatus('Error stopping voice recognition.', true);
-        }
-    }
-});
-
-// Add a function to check browser support
-function checkBrowserSupport() {
-    if (!('webkitSpeechRecognition' in window)) {
-        showPageStatus('Speech recognition is not supported in your browser. Please use Chrome.', true);
-        return false;
-    }
-    if (!('mediaDevices' in navigator)) {
-        showPageStatus('Microphone access is not supported in your browser. Please use Chrome.', true);
-        return false;
-    }
-    return true;
-}
-
-// Update the initialization
-document.addEventListener('DOMContentLoaded', async () => {
-    if (checkBrowserSupport()) {
-        initSpeechRecognition();
-        initSpeechSynthesis();
-        
-        // Load voices when they become available
-        if ('speechSynthesis' in window) {
-            speechSynthesis.onvoiceschanged = () => {
-                initSpeechSynthesis();
-            };
-        }
+    // Set initial TTS toggle state
+    const ttsButton = document.getElementById('ttsToggle');
+    ttsButton.classList.toggle('active', ttsEnabled);
+    
+    // Load voices when they become available
+    if ('speechSynthesis' in window) {
+        speechSynthesis.onvoiceschanged = () => {
+            initSpeechSynthesis();
+        };
     }
 });
