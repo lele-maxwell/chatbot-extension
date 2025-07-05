@@ -364,19 +364,26 @@ document.getElementById('ttsToggle').addEventListener('click', () => {
 
 // Initialize speech recognition
 function initSpeechRecognition() {
+    console.log('Initializing speech recognition...');
+    
     if ('webkitSpeechRecognition' in window) {
         recognition = new webkitSpeechRecognition();
         recognition.continuous = false;
         recognition.interimResults = true; // Enable interim results for better feedback
+        recognition.maxAlternatives = 1;
+        
+        console.log('Speech recognition object created');
         
         recognition.onstart = () => {
+            console.log('Speech recognition started - listening...');
             isRecording = true;
             const micButton = document.getElementById('micButton');
             micButton.classList.add('recording');
-            showPageStatus('Listening...', false);
+            showPageStatus('Listening... Speak now!', false);
         };
         
         recognition.onend = () => {
+            console.log('Speech recognition ended');
             isRecording = false;
             const micButton = document.getElementById('micButton');
             micButton.classList.remove('recording');
@@ -384,15 +391,20 @@ function initSpeechRecognition() {
         };
         
         recognition.onresult = (event) => {
+            console.log('Speech recognition result received:', event.results);
+            
             const transcript = Array.from(event.results)
                 .map(result => result[0].transcript)
                 .join('');
+            
+            console.log('Transcript:', transcript);
             
             // Update input field with interim results
             document.getElementById('userInput').value = transcript;
             
             // If this is the final result, send the message
             if (event.results[0].isFinal) {
+                console.log('Final transcript:', transcript);
                 const input = document.getElementById('userInput');
                 const enterEvent = new KeyboardEvent('keypress', {
                     key: 'Enter',
@@ -432,9 +444,11 @@ function initSpeechRecognition() {
             }
             showPageStatus(errorMessage, true);
         };
+        
+        console.log('Speech recognition initialized successfully');
     } else {
-        console.error('Speech recognition not supported');
-        showPageStatus('Speech recognition is not supported in your browser.', true);
+        console.error('Speech recognition not supported in this browser');
+        showPageStatus('Speech recognition is not supported in your browser. Please use Chrome.', true);
     }
 }
 
@@ -542,16 +556,58 @@ function speakText(text) {
     speakNextChunk();
 }
 
+// Add microphone test function
+function testMicrophone() {
+    console.log('Testing microphone access...');
+    
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showPageStatus('Microphone access not supported in this browser', true);
+        return;
+    }
+    
+    navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+            console.log('Microphone access granted!');
+            showPageStatus('Microphone is working! ✅', false);
+            // Stop the stream immediately
+            stream.getTracks().forEach(track => track.stop());
+        })
+        .catch(err => {
+            console.error('Microphone access error:', err);
+            let errorMsg = 'Microphone access failed: ';
+            
+            if (err.name === 'NotAllowedError') {
+                errorMsg += 'Permission denied. Please allow microphone access in your browser settings.';
+            } else if (err.name === 'NotFoundError') {
+                errorMsg += 'No microphone found. Please check your microphone connection.';
+            } else if (err.name === 'NotReadableError') {
+                errorMsg += 'Microphone is in use by another application.';
+            } else {
+                errorMsg += err.message;
+            }
+            
+            showPageStatus(errorMsg, true);
+        });
+}
+
 // Handle mic button events with better feedback
 document.getElementById('micButton').addEventListener('mousedown', async () => {
+    console.log('Microphone button pressed');
+    
     if (!recognition) {
         showPageStatus('Initializing speech recognition...', false);
         initSpeechRecognition();
+        return; // Wait for initialization
     }
     
     if (!isRecording) {
         try {
-            recognition.lang = document.getElementById('languageSelect').value;
+            // Test microphone access first
+            testMicrophone();
+            
+            const selectedLang = document.getElementById('languageSelect').value;
+            console.log('Starting voice recognition with language:', selectedLang);
+            recognition.lang = selectedLang;
             recognition.start();
         } catch (error) {
             console.error('Error starting recognition:', error);
@@ -562,12 +618,14 @@ document.getElementById('micButton').addEventListener('mousedown', async () => {
 
 document.getElementById('micButton').addEventListener('mouseup', () => {
     if (recognition && isRecording) {
+        console.log('Stopping voice recognition');
         recognition.stop();
     }
 });
 
 document.getElementById('micButton').addEventListener('mouseleave', () => {
     if (recognition && isRecording) {
+        console.log('Stopping voice recognition (mouse left)');
         recognition.stop();
     }
 });
@@ -575,15 +633,54 @@ document.getElementById('micButton').addEventListener('mouseleave', () => {
 // Add touch events for mobile support
 document.getElementById('micButton').addEventListener('touchstart', (e) => {
     e.preventDefault();
-    if (recognition && !isRecording) {
-        recognition.lang = document.getElementById('languageSelect').value;
-        recognition.start();
+    if (!recognition) {
+        showPageStatus('Initializing speech recognition...', false);
+        initSpeechRecognition();
+        return;
+    }
+    
+    if (!isRecording) {
+        try {
+            const selectedLang = document.getElementById('languageSelect').value;
+            console.log('Starting voice recognition (touch) with language:', selectedLang);
+            recognition.lang = selectedLang;
+            recognition.start();
+        } catch (error) {
+            console.error('Error starting recognition (touch):', error);
+            showPageStatus('Failed to start voice input. Please try again.', true);
+        }
     }
 });
 
 document.getElementById('micButton').addEventListener('touchend', (e) => {
     e.preventDefault();
     if (recognition && isRecording) {
+        console.log('Stopping voice recognition (touch end)');
+        recognition.stop();
+    }
+});
+
+// Add click event as fallback
+document.getElementById('micButton').addEventListener('click', (e) => {
+    e.preventDefault();
+    if (!recognition) {
+        showPageStatus('Initializing speech recognition...', false);
+        initSpeechRecognition();
+        return;
+    }
+    
+    if (!isRecording) {
+        try {
+            const selectedLang = document.getElementById('languageSelect').value;
+            console.log('Starting voice recognition (click) with language:', selectedLang);
+            recognition.lang = selectedLang;
+            recognition.start();
+        } catch (error) {
+            console.error('Error starting recognition (click):', error);
+            showPageStatus('Failed to start voice input. Please try again.', true);
+        }
+    } else {
+        console.log('Stopping voice recognition (click)');
         recognition.stop();
     }
 });
