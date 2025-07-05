@@ -187,12 +187,15 @@ function cleanAIResponse(response) {
   // Improve list formatting with better spacing
   response = response.replace(/^\d+\.\s+/gm, '• '); // Convert numbered lists to bullet points
   
-  // Add proper spacing around bullet points
+  // Ensure proper spacing between bullet points - add line breaks before each bullet
   response = response.replace(/([.!?])\s*•/g, '$1\n\n•'); // Add double line break before bullet points
-  response = response.replace(/•\s*([^•\n]+?)(?=\n•|\n\n|$)/g, '• $1'); // Ensure proper spacing after bullet points
+  response = response.replace(/([^•\n])\s*•/g, '$1\n\n•'); // Add double line break before bullet points that don't follow punctuation
   
   // Format category headers (like "Creative:", "Body:", "New:") - WITHOUT adding markdown back
   response = response.replace(/([A-Z][a-z\s]+):\s*/g, '\n$1:\n');
+  
+  // Ensure each bullet point is on its own line with proper spacing
+  response = response.replace(/•\s*([^•\n]+?)(?=\n•|\n\n|$)/g, '• $1\n');
   
   // Clean up multiple newlines and ensure proper spacing
   response = response.replace(/\n\s*\n\s*\n/g, '\n\n'); // Remove excessive newlines
@@ -205,6 +208,7 @@ function cleanAIResponse(response) {
   response = response.replace(/^If you're feeling bored, here are a few ideas to liven things up:/i, 'Here are some fun ideas to beat boredom:');
   response = response.replace(/^Hope these help!/i, 'Give one of these a try! 😊');
   response = response.replace(/^Hope these ideas help you find something enjoyable to do!/i, 'Give one of these a try! 😊');
+  response = response.replace(/^I hope these ideas help you find something enjoyable to do!/i, 'Give one of these a try! 😊');
   response = response.replace(/^Here are some suggestions:/i, 'Here are some cool things you could do:');
   response = response.replace(/Feel free to ask for more ideas if you need them! I'm here to help\./i, 'Try one of these and let me know how it goes! 😊');
   response = response.replace(/What sounds interesting to you\?/i, 'Which one sounds fun to you? 😊');
@@ -219,6 +223,17 @@ function cleanAIResponse(response) {
   response = response.replace(/This can be both engaging and educational\./gi, 'This can be both fun and educational!');
   response = response.replace(/Socializing can lift your spirits and make the time pass enjoyably\./gi, 'Socializing can lift your spirits!');
   response = response.replace(/Recognize that rest is important and can help alleviate boredom\./gi, 'Rest is important too!');
+  
+  // Make bullet points more concise by removing verbose explanations
+  response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*These activities can be both relaxing and fulfilling\./gi, '• $1: $2');
+  response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*It's a fun way to be creative and enjoy the fruits of your labor\./gi, '• $1: $2');
+  response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*Gaming can be an engaging way to spend time\./gi, '• $1: $2');
+  response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*Socializing can make the time pass enjoyably\./gi, '• $1: $2');
+  response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*It can be productive and make your environment feel fresh\./gi, '• $1: $2');
+  response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*You might discover a new hobby or interest\./gi, '• $1: $2');
+  response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*Dancing is also a great way to get moving and enjoy some music\./gi, '• $1: $2');
+  response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*to give yourself something to look forward to\./gi, '• $1: $2');
+  response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*I hope these ideas help you find something enjoyable to do!/gi, '• $1: $2');
   
   // Add final spacing
   response = response.trim();
