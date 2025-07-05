@@ -179,121 +179,96 @@ input.addEventListener('keypress', async (e) => {
 function cleanAIResponse(response) {
   if (!response) return response;
   
-  // Remove <think> tags and their content
-  response = response.replace(/<think>.*?<\/think>/gs, '');
+  // Define cleaning rules in a maintainable structure
+  const cleaningRules = [
+    // High-priority: Remove internal reasoning tags
+    { pattern: /<think>.*?<\/think>/gs, replacement: '', description: 'Remove think tags' },
+    { pattern: /<[^>]*>/g, replacement: '', description: 'Remove XML tags' },
+    
+    // Remove common reasoning patterns
+    { pattern: /^I think\s+/i, replacement: '', description: 'Remove "I think" prefix' },
+    { pattern: /^Let me\s+/i, replacement: '', description: 'Remove "Let me" prefix' },
+    { pattern: /^Based on\s+/i, replacement: '', description: 'Remove "Based on" prefix' },
+    { pattern: /^To address your\s+/i, replacement: '', description: 'Remove "To address your" prefix' },
+    
+    // Remove detailed internal reasoning patterns
+    { pattern: /The response to the user's request.*?Final Response:/gs, replacement: '', description: 'Remove response analysis' },
+    { pattern: /Thought Process:.*?Final Response:/gs, replacement: '', description: 'Remove thought process' },
+    { pattern: /Here's the organized presentation of the thought process and the final response:/gi, replacement: '', description: 'Remove process description' },
+    { pattern: /Context Consideration:.*?Final Response:/gs, replacement: '', description: 'Remove context analysis' },
+    
+    // Remove academic and formal language patterns
+    { pattern: /Step-by-step explanation:.*?Verification:.*?confirms the solution is correct\./gs, replacement: '', description: 'Remove step-by-step explanations' },
+    { pattern: /This can be proven using mathematical induction:.*?Conclusion:.*?for all positive integers n\./gs, replacement: '', description: 'Remove mathematical proofs' },
+    { pattern: /Base Case.*?Inductive Step:.*?completing the induction\./gs, replacement: '', description: 'Remove induction proofs' },
+    
+    // Convert markdown formatting to plain text
+    { pattern: /\*\*(.*?)\*\*/g, replacement: '$1', description: 'Remove bold markers' },
+    { pattern: /\*(.*?)\*/g, replacement: '$1', description: 'Remove italic markers' },
+    { pattern: /`(.*?)`/g, replacement: '$1', description: 'Remove code markers' },
+    { pattern: /\[(.*?)\]\(.*?\)/g, replacement: '$1', description: 'Remove link formatting' },
+    { pattern: /^#+\s+/gm, replacement: '', description: 'Remove heading markers' },
+    
+    // Remove LaTeX math formatting
+    { pattern: /\\\(.*?\\\)/g, replacement: '', description: 'Remove inline math' },
+    { pattern: /\\\[.*?\\\]/g, replacement: '', description: 'Remove display math' },
+    
+    // Improve list formatting
+    { pattern: /^\d+\.\s+/gm, replacement: '• ', description: 'Convert numbered lists to bullet points' },
+    
+    // Add proper spacing around bullet points
+    { pattern: /([.!?])\s*•/g, replacement: '$1\n\n•', description: 'Add line breaks before bullet points' },
+    { pattern: /([^•\n])\s*•/g, replacement: '$1\n\n•', description: 'Add line breaks before bullet points' },
+    
+    // Format category headers
+    { pattern: /([A-Z][a-z\s]+):\s*/g, replacement: '\n$1:\n', description: 'Format category headers' },
+    
+    // Ensure each bullet point is on its own line
+    { pattern: /•\s*([^•\n]+?)(?=\n•|\n\n|$)/g, replacement: '• $1\n', description: 'Add line breaks after bullet points' },
+    
+    // Clean up multiple newlines
+    { pattern: /\n\s*\n\s*\n/g, replacement: '\n\n', description: 'Remove excessive newlines' },
+    { pattern: /\n{3,}/g, replacement: '\n\n', description: 'Limit consecutive newlines' },
+    
+    // Make responses more conversational
+    { pattern: /^Here are a few ideas:/i, replacement: 'Here are some fun ideas to try:', description: 'Improve response tone' },
+    { pattern: /^Here are some ideas to help you overcome boredom:/i, replacement: 'Here are some fun ideas to beat boredom:', description: 'Improve response tone' },
+    { pattern: /^Here are some ideas to help you shake off boredom:/i, replacement: 'Here are some fun ideas to beat boredom:', description: 'Improve response tone' },
+    { pattern: /^If you're feeling bored, here are a few ideas to liven things up:/i, replacement: 'Here are some fun ideas to beat boredom:', description: 'Improve response tone' },
+    { pattern: /^Hope these help!/i, replacement: 'Give one of these a try! 😊', description: 'Improve response tone' },
+    { pattern: /^Hope these ideas help you find something enjoyable to do!/i, replacement: 'Give one of these a try! 😊', description: 'Improve response tone' },
+    { pattern: /^I hope these ideas help you find something enjoyable to do!/i, replacement: 'Give one of these a try! 😊', description: 'Improve response tone' },
+    { pattern: /^Here are some suggestions:/i, replacement: 'Here are some cool things you could do:', description: 'Improve response tone' },
+    { pattern: /Feel free to ask for more ideas if you need them! I'm here to help\./i, replacement: 'Try one of these and let me know how it goes! 😊', description: 'Improve response tone' },
+    { pattern: /What sounds interesting to you\?/i, replacement: 'Which one sounds fun to you? 😊', description: 'Improve response tone' },
+    
+    // Remove analytical and reasoning language
+    { pattern: /Remember, it's okay to feel bored sometimes\./gi, replacement: '', description: 'Remove philosophical statements' },
+    { pattern: /Embrace it as an opportunity to explore new activities or simply relax\./gi, replacement: '', description: 'Remove philosophical statements' },
+    { pattern: /Mix different activities to keep things interesting and engaging\./gi, replacement: '', description: 'Remove analytical language' },
+    { pattern: /Enjoy your time!/gi, replacement: 'Have fun! 😊', description: 'Improve response tone' },
+    
+    // Remove verbose explanations
+    { pattern: /Start with simple activities like a walk, then gradually explore new hobbies or classes to find what excites you\./gi, replacement: '', description: 'Remove verbose endings' },
+    { pattern: /which one do you advice me to do/gi, replacement: 'Which one sounds fun to you? 😊', description: 'Improve response tone' },
+  ];
   
-  // Remove any remaining XML-like tags that might contain reasoning
-  response = response.replace(/<[^>]*>/g, '');
+  // Apply rules based on context
+  let cleaned = response;
   
-  // Remove common reasoning patterns
-  response = response.replace(/^I think\s+/i, '');
-  response = response.replace(/^Let me\s+/i, '');
-  response = response.replace(/^Based on\s+/i, '');
-  response = response.replace(/^To address your\s+/i, '');
-  response = response.replace(/^Here's a structured plan based on your thoughts:/i, 'Here are some fun ideas to try:');
-  response = response.replace(/^Here's a plan to help you:/i, 'Here are some fun ideas to try:');
-  response = response.replace(/^To overcome boredom, consider the following organized approach:/i, 'Here are some fun ideas to beat boredom:');
-  response = response.replace(/^Consider the following organized approach:/i, 'Here are some fun ideas to try:');
+  // Check if response contains Chinese characters (but don't force English)
+  const hasChinese = /[\u4e00-\u9fff]/.test(response);
   
-  // Remove detailed internal reasoning patterns
-  response = response.replace(/The response to the user's request.*?Final Response:/gs, '');
-  response = response.replace(/Thought Process:.*?Final Response:/gs, '');
-  response = response.replace(/Here's the organized presentation of the thought process and the final response:/gi, '');
-  response = response.replace(/Context Consideration:.*?Final Response:/gs, '');
-  response = response.replace(/• Context Consideration:.*?Final Response:/gs, '');
-  response = response.replace(/• Appeal Factors:.*?Final Response:/gs, '');
-  response = response.replace(/• Diversity:.*?Final Response:/gs, '');
-  response = response.replace(/• User Needs:.*?Final Response:/gs, '');
-  
-  // Remove specific reasoning patterns
-  response = response.replace(/I've decided to try.*?which is a great motivator\./gi, '');
-  response = response.replace(/It seems like you might be trying to say.*?I'm here to help!/gi, '');
-  response = response.replace(/Could you clarify or provide more details about what you're asking or referring to\?/gi, '');
-  
-  // Remove academic and formal language patterns
-  response = response.replace(/Step-by-step explanation:.*?Verification:.*?confirms the solution is correct\./gs, '');
-  response = response.replace(/This can be proven using mathematical induction:.*?Conclusion:.*?for all positive integers n\./gs, '');
-  response = response.replace(/Base Case.*?Inductive Step:.*?completing the induction\./gs, '');
-  
-  // Remove Chinese responses (unless user is speaking Chinese)
-  if (response.includes('您好') || response.includes('建议您') || response.includes('抱歉')) {
-    response = 'I apologize, but I should respond in the same language as you. Could you please repeat your question in English?';
+  for (const rule of cleaningRules) {
+    // Skip language-specific rules that might interfere with Chinese responses
+    if (hasChinese && rule.description.includes('Remove Chinese responses')) {
+      continue;
+    }
+    
+    cleaned = cleaned.replace(rule.pattern, rule.replacement);
   }
   
-  // Convert markdown formatting to plain text - do this BEFORE other formatting
-  response = response.replace(/\*\*(.*?)\*\*/g, '$1'); // Remove bold markers
-  response = response.replace(/\*(.*?)\*/g, '$1'); // Remove italic markers
-  response = response.replace(/`(.*?)`/g, '$1'); // Remove code markers
-  response = response.replace(/\[(.*?)\]\(.*?\)/g, '$1'); // Remove link formatting
-  response = response.replace(/^#+\s+/gm, ''); // Remove heading markers
-  
-  // Remove LaTeX math formatting
-  response = response.replace(/\\\(.*?\\\)/g, ''); // Remove inline math
-  response = response.replace(/\\\[.*?\\\]/g, ''); // Remove display math
-  
-  // Improve list formatting with better spacing
-  response = response.replace(/^\d+\.\s+/gm, '• '); // Convert numbered lists to bullet points
-  
-  // Ensure proper spacing between bullet points - add line breaks before each bullet
-  response = response.replace(/([.!?])\s*•/g, '$1\n\n•'); // Add double line break before bullet points
-  response = response.replace(/([^•\n])\s*•/g, '$1\n\n•'); // Add double line break before bullet points that don't follow punctuation
-  
-  // Format category headers (like "Creative:", "Body:", "New:") - WITHOUT adding markdown back
-  response = response.replace(/([A-Z][a-z\s]+):\s*/g, '\n$1:\n');
-  
-  // Ensure each bullet point is on its own line with proper spacing
-  response = response.replace(/•\s*([^•\n]+?)(?=\n•|\n\n|$)/g, '• $1\n');
-  
-  // Clean up multiple newlines and ensure proper spacing
-  response = response.replace(/\n\s*\n\s*\n/g, '\n\n'); // Remove excessive newlines
-  response = response.replace(/\n{3,}/g, '\n\n'); // Limit to max 2 consecutive newlines
-  
-  // Make responses more conversational and friendly
-  response = response.replace(/^Here are a few ideas:/i, 'Here are some fun ideas to try:');
-  response = response.replace(/^Here are some ideas to help you overcome boredom:/i, 'Here are some fun ideas to beat boredom:');
-  response = response.replace(/^Here are some ideas to help you shake off boredom:/i, 'Here are some fun ideas to beat boredom:');
-  response = response.replace(/^If you're feeling bored, here are a few ideas to liven things up:/i, 'Here are some fun ideas to beat boredom:');
-  response = response.replace(/^Hope these help!/i, 'Give one of these a try! 😊');
-  response = response.replace(/^Hope these ideas help you find something enjoyable to do!/i, 'Give one of these a try! 😊');
-  response = response.replace(/^I hope these ideas help you find something enjoyable to do!/i, 'Give one of these a try! 😊');
-  response = response.replace(/^Here are some suggestions:/i, 'Here are some cool things you could do:');
-  response = response.replace(/Feel free to ask for more ideas if you need them! I'm here to help\./i, 'Try one of these and let me know how it goes! 😊');
-  response = response.replace(/What sounds interesting to you\?/i, 'Which one sounds fun to you? 😊');
-  
-  // Remove analytical and reasoning language
-  response = response.replace(/Remember, it's okay to feel bored sometimes\./gi, '');
-  response = response.replace(/Embrace it as an opportunity to explore new activities or simply relax\./gi, '');
-  response = response.replace(/Mix different activities to keep things interesting and engaging\./gi, '');
-  response = response.replace(/Enjoy your time!/gi, 'Have fun! 😊');
-  response = response.replace(/This can help energize you and provide a change of scenery\./gi, 'This can help energize you!');
-  response = response.replace(/This can be a fun way to express yourself and discover new interests\./gi, 'This can be a fun way to express yourself!');
-  response = response.replace(/This can be both engaging and educational\./gi, 'This can be both fun and educational!');
-  response = response.replace(/Socializing can lift your spirits and make the time pass enjoyably\./gi, 'Socializing can lift your spirits!');
-  response = response.replace(/Recognize that rest is important and can help alleviate boredom\./gi, 'Rest is important too!');
-  
-  // Make bullet points more concise by removing verbose explanations
-  response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*These activities can be both relaxing and fulfilling\./gi, '• $1: $2');
-  response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*It's a fun way to be creative and enjoy the fruits of your labor\./gi, '• $1: $2');
-  response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*Gaming can be an engaging way to spend time\./gi, '• $1: $2');
-  response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*Socializing can make the time pass enjoyably\./gi, '• $1: $2');
-  response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*It can be productive and make your environment feel fresh\./gi, '• $1: $2');
-  response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*You might discover a new hobby or interest\./gi, '• $1: $2');
-  response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*Dancing is also a great way to get moving and enjoy some music\./gi, '• $1: $2');
-  response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*to give yourself something to look forward to\./gi, '• $1: $2');
-  response = response.replace(/•\s*([^:]+):\s*([^.]+)\.\s*I hope these ideas help you find something enjoyable to do!/gi, '• $1: $2');
-  
-  // Remove recipe-specific reasoning
-  response = response.replace(/Each recipe offers something unique, catering to various tastes and dietary preferences, providing flexibility for different meal needs\./gi, '');
-  response = response.replace(/Here are five unique and flavorful recipes, each with a brief description and key ingredients:/gi, 'Here are some delicious recipes to try:');
-  
-  // Remove verbose endings
-  response = response.replace(/Start with simple activities like a walk, then gradually explore new hobbies or classes to find what excites you\./gi, '');
-  response = response.replace(/which one do you advice me to do/gi, 'Which one sounds fun to you? 😊');
-  
-  // Add final spacing
-  response = response.trim();
-  
-  return response;
+  return cleaned.trim();
 }
 
 function appendMessage(sender, text) {
