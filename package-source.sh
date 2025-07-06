@@ -27,9 +27,16 @@ mkdir -p source-package/icons
 cp icons/icon128.png source-package/icons/
 cp icons/icon1285.png source-package/icons/
 
+# Styled icons
+mkdir -p source-package/styled-icons
+cp styled-icons/icon48.png source-package/styled-icons/
+cp styled-icons/icon96.png source-package/styled-icons/
+cp styled-icons/icon128.png source-package/styled-icons/
+
 # Scripts
 cp package-extension.sh source-package/
 cp package-source.sh source-package/
+cp create-styled-icons.sh source-package/
 
 # Documentation and legal files
 cp README.md source-package/
@@ -39,7 +46,7 @@ cp privacy-policy.html source-package/
 # Create the source code ZIP file
 echo "Creating source code ZIP package..."
 cd source-package
-zip -r ../maxaichat-source-code.zip . -x "*.DS_Store" "*/node_modules/*" "*.git*" "*.css.map"
+zip -r ../maxaichat-source-code.zip . -x "*.DS_Store" "*/node_modules/*" "*.git*" "*.css.map" "*.log"
 
 # Clean up
 cd ..
@@ -58,8 +65,10 @@ echo "- tailwind.config.js (Tailwind config)"
 echo "- postcss.config.js (PostCSS config)"
 echo "- yarn.lock (dependency lock file)"
 echo "- icons/ (extension icons)"
+echo "- styled-icons/ (styled icons)"
 echo "- package-extension.sh (packaging script)"
 echo "- package-source.sh (this script)"
+echo "- create-styled-icons.sh (icon creation script)"
 echo "- README.md (build instructions)"
 echo "- PRIVACY_POLICY.md (privacy policy)"
 echo "- privacy-policy.html (web version of privacy policy)"
@@ -67,4 +76,8 @@ echo ""
 echo "Ready for Mozilla source code submission!"
 echo ""
 echo "Build instructions are in README.md"
-echo "Reviewers can run: yarn install && yarn build && ./package-extension.sh" 
+echo "Reviewers can run:"
+echo "1. yarn install"
+echo "2. yarn build"
+echo "3. ./package-extension.sh"
+echo "4. Load manifest.json in Firefox" 
