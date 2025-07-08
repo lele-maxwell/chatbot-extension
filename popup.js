@@ -133,9 +133,8 @@ function showApiKeyMissingPrompt() {
   promptDiv.style.fontSize = '16px';
   promptDiv.innerHTML = `
     <div style="font-size:22px; margin-bottom:8px;">🔑 API Key Required</div>
-    <div style="margin-bottom:14px;">To use MaxAiChat, please add your OpenAI-compatible API key and endpoint.<br>Click below to open settings.</div>
+    <div style="margin-bottom:14px;">To use MaxAiChat, please add your API key and endpoint.<br>Click below to open settings.</div>
     <button id="openSettingsFromPrompt" style="background:#7ED957;color:#1A1A1A;font-weight:600;padding:10px 22px;border:none;border-radius:8px;cursor:pointer;font-size:15px;">Open Settings</button>
-    <div style="margin-top:10px;font-size:13px;color:#555;">Don’t have an API key? <a href='https://platform.openai.com/account/api-keys' target='_blank' style='color:#7ED957;text-decoration:underline;'>Get one here</a>.</div>
   `;
   chatDiv.appendChild(promptDiv);
   document.getElementById('openSettingsFromPrompt').onclick = () => {
