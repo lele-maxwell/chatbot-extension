@@ -112,6 +112,38 @@ function showPageStatus(text, isError = false) {
 // Add conversation memory
 let conversationHistory = [];
 
+// Helper to show a user-friendly prompt if API key is missing
+function showApiKeyMissingPrompt() {
+  const chatDiv = document.getElementById('chat');
+  // Remove any previous prompt
+  const oldPrompt = document.getElementById('apiKeyMissingPrompt');
+  if (oldPrompt) oldPrompt.remove();
+
+  const promptDiv = document.createElement('div');
+  promptDiv.id = 'apiKeyMissingPrompt';
+  promptDiv.style.background = 'rgba(126,217,87,0.08)';
+  promptDiv.style.border = '2px solid #7ED957';
+  promptDiv.style.borderRadius = '16px';
+  promptDiv.style.padding = '18px 16px';
+  promptDiv.style.margin = '24px auto';
+  promptDiv.style.maxWidth = '90%';
+  promptDiv.style.textAlign = 'center';
+  promptDiv.style.color = '#1A1A1A';
+  promptDiv.style.fontWeight = '500';
+  promptDiv.style.fontSize = '16px';
+  promptDiv.innerHTML = `
+    <div style="font-size:22px; margin-bottom:8px;">🔑 API Key Required</div>
+    <div style="margin-bottom:14px;">To use MaxAiChat, please add your API key and endpoint.<br>Click below to open settings.</div>
+    <button id="openSettingsFromPrompt" style="background:#7ED957;color:#1A1A1A;font-weight:600;padding:10px 22px;border:none;border-radius:8px;cursor:pointer;font-size:15px;">Open Settings</button>
+  `;
+  chatDiv.appendChild(promptDiv);
+  document.getElementById('openSettingsFromPrompt').onclick = () => {
+    document.getElementById('chatPanel').classList.add('hidden');
+    document.getElementById('settingsPanel').classList.remove('hidden');
+    promptDiv.remove();
+  };
+}
+
 input.addEventListener('keypress', async (e) => {
   if (e.key === 'Enter' && input.value.trim()) {
     const userText = input.value
@@ -120,7 +152,7 @@ input.addEventListener('keypress', async (e) => {
 
     const { apiKey, apiUrl } = await loadSettings()
     if (!apiKey || !apiUrl) {
-      alert('Please set your API key and endpoint.')
+      showApiKeyMissingPrompt();
       return
     }
 

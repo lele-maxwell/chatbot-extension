@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "AI Chatbot Assistant",
+    "name": "MaxAiChat",
     "version": "1.0",
-    "description": "Client-side chatbot powered by OpenAI-compatible APIs.",
+    "description": "AI-powered chatbot with voice input, TTS, and conversation memory. Powered by OpenAI-compatible APIs.",
     "permissions": [
       "storage",
       "activeTab",
@@ -16,10 +16,19 @@
     "action": {
       "default_popup": "popup.html",
       "default_icon": {
-        "128": "icons/icon128.png"
+        "48": "styled-icons/icon48.png",
+        "96": "styled-icons/icon96.png",
+        "128": "styled-icons/icon128.png"
       }
     },
     "icons": {
-      "128": "icons/icon128.png"
+      "48": "styled-icons/icon48.png",
+      "96": "styled-icons/icon96.png",
+      "128": "styled-icons/icon128.png"
+    },
+    "browser_specific_settings": {
+      "gecko": {
+        "id": "maxaichat@example.com"
+      }
     }
 }

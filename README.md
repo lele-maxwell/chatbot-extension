@@ -1,6 +1,131 @@
-# AI Chatbot Assistant Browser Extension
+# MaxAiChat - Firefox Extension
 
-A sophisticated browser extension that combines the power of AI with dynamic page content analysis. This extension provides an intelligent chat interface that can understand and reference the content of your current webpage, making it an invaluable tool for research, learning, and productivity.
+AI-powered chatbot with voice input, TTS, and conversation memory. Powered by OpenAI-compatible APIs.
+
+## Build Instructions for Mozilla Reviewers
+
+### Prerequisites
+
+- **Node.js**: Version 18.0.0 or higher
+- **Yarn**: Version 1.22.0 or higher (or npm 8.0.0+)
+- **Operating System**: Linux, macOS, or Windows
+
+### Installation Steps
+
+1. **Install Node.js** (if not already installed):
+   ```bash
+   # Download from https://nodejs.org/
+   # Or use package manager:
+   # Ubuntu/Debian: sudo apt install nodejs
+   # macOS: brew install node
+   # Windows: Download installer from nodejs.org
+   ```
+
+2. **Install Yarn** (if not already installed):
+   ```bash
+   npm install -g yarn
+   # Or use package manager:
+   # Ubuntu/Debian: sudo apt install yarn
+   # macOS: brew install yarn
+   ```
+
+3. **Clone or extract the source code** to a directory
+
+4. **Install dependencies**:
+   ```bash
+   yarn install
+   # Or with npm: npm install
+   ```
+
+### Build Process
+
+1. **Build the CSS** (generates output.css):
+   ```bash
+   yarn build
+   # Or with npm: npm run build
+   ```
+
+2. **Verify the build output**:
+   - Check that `output.css` is generated
+   - Verify file size and content
+
+3. **Package the extension**:
+   ```bash
+   ./package-extension.sh
+   ```
+
+### Build Script Details
+
+The build process uses:
+- **Tailwind CSS**: CSS framework for styling
+- **PostCSS**: CSS processing and optimization
+- **Autoprefixer**: CSS vendor prefixing
+
+### File Structure After Build
+
+```
+chatbot-extension/
+├── manifest.json          # Extension manifest
+├── popup.html            # Main popup interface
+├── popup.js              # Main JavaScript logic
+├── output.css            # Generated CSS (from build)
+├── settings.html         # Settings page
+├── settings.js           # Settings logic
+├── icons/                # Extension icons
+│   ├── icon128.png
+│   └── icon1285.png
+├── package.json          # Dependencies and scripts
+├── tailwind.config.js    # Tailwind configuration
+├── postcss.config.js     # PostCSS configuration
+├── package-extension.sh  # Packaging script
+└── README.md            # This file
+```
+
+### Verification Steps
+
+1. **Check build output**:
+   ```bash
+   ls -la output.css
+   # Should show the generated CSS file
+   ```
+
+2. **Test the extension locally**:
+   - Open Firefox
+   - Go to `about:debugging`
+   - Click "This Firefox"
+   - Click "Load Temporary Add-on"
+   - Select the `manifest.json` file
+
+3. **Verify functionality**:
+   - Click the extension icon
+   - Test voice input (requires microphone permission)
+   - Test TTS functionality
+   - Test settings configuration
+
+### Build Environment Notes
+
+- **CSS Processing**: Tailwind CSS processes utility classes into final CSS
+- **No Minification**: Source code is not minified or obfuscated
+- **No Transpilation**: JavaScript is not transpiled (uses modern ES6+ features)
+- **Dependencies**: All dependencies are standard npm packages
+
+### Troubleshooting
+
+If build fails:
+1. Ensure Node.js version is 18.0.0+
+2. Clear node_modules and reinstall: `rm -rf node_modules && yarn install`
+3. Check for any missing dependencies in package.json
+
+### Source Code Verification
+
+All source files are human-readable:
+- `popup.js`: Main application logic (710 lines)
+- `popup.html`: HTML structure (498 lines)
+- `output.css`: Generated CSS (744 lines)
+- `settings.js`: Settings logic (18 lines)
+- `settings.html`: Settings page (25 lines)
+
+No obfuscation, minification, or machine-generated code is included in the final extension.
 
 ## 🌟 Features
 
