@@ -488,7 +488,7 @@ function initSpeechSynthesis() {
     }
 }
 
-// Speak text using TTS
+// Speak text using TTS with improved voice selection for consistent quality
 function speakText(text) {
     if (!('speechSynthesis' in window)) return;
     
@@ -501,8 +501,48 @@ function speakText(text) {
     // Get available voices
     const voices = speechSynthesis.getVoices();
     
-    // Find a voice matching the selected language
-    const voice = voices.find(v => v.lang.startsWith(language)) || voices[0];
+    // Improved voice selection logic to prioritize high-quality voices
+    let voice = null;
+    
+    // First, try to find a high-quality voice for the selected language
+    // Look for voices with names that suggest high quality (Google, Microsoft, etc.)
+    voice = voices.find(v => 
+        v.lang === language && 
+        (v.name.toLowerCase().includes('google') || 
+         v.name.toLowerCase().includes('microsoft') ||
+         v.name.toLowerCase().includes('samantha') ||
+         v.name.toLowerCase().includes('victoria') ||
+         v.name.toLowerCase().includes('alex'))
+    );
+    
+    // If not found, try any voice for the language
+    if (!voice) {
+        voice = voices.find(v => v.lang === language);
+    }
+    
+    // If still not found, try to find a voice that starts with the language code
+    if (!voice) {
+        voice = voices.find(v => v.lang.startsWith(language));
+    }
+    
+    // If still not found, try to find any English voice (fallback)
+    if (!voice) {
+        voice = voices.find(v => v.lang.startsWith('en'));
+    }
+    
+    // If still no voice found, use the first available voice
+    if (!voice && voices.length > 0) {
+        voice = voices[0];
+    }
+    
+    // If no voice available, show a message and return
+    if (!voice) {
+        console.warn('No TTS voices available');
+        showPageStatus('TTS not available in this browser', true);
+        return;
+    }
+    
+    console.log('Selected voice:', voice.name, voice.lang, voice.voiceURI);
     
     // Split long text into smaller chunks if needed
     const maxChunkLength = 200; // Maximum characters per chunk
@@ -533,30 +573,32 @@ function speakText(text) {
     let currentChunkIndex = 0;
     
     function speakNextChunk() {
-        if (currentChunkIndex < textChunks.length) {
-            const chunk = textChunks[currentChunkIndex];
-            
-            // Create and configure speech
-            const utterance = new SpeechSynthesisUtterance(chunk);
-            utterance.voice = voice;
-            utterance.rate = speed;
-            utterance.pitch = 1;
-            
-            // Add event listeners for this chunk
-            utterance.onend = () => {
-                currentChunkIndex++;
-                speakNextChunk(); // Speak the next chunk
-            };
-            
-            utterance.onerror = (event) => {
-                console.error('TTS error:', event);
-                currentChunkIndex++;
-                speakNextChunk(); // Continue with next chunk even if there's an error
-            };
-            
-            // Speak the current chunk
-            speechSynthesis.speak(utterance);
+        if (currentChunkIndex >= textChunks.length) {
+            return; // All chunks spoken
         }
+        
+        const utterance = new SpeechSynthesisUtterance(textChunks[currentChunkIndex]);
+        utterance.voice = voice;
+        utterance.rate = speed;
+        utterance.pitch = 1.0; // Normal pitch
+        utterance.volume = 1.0; // Full volume
+        
+        // Add event listeners for better control
+        utterance.onend = () => {
+            currentChunkIndex++;
+            if (currentChunkIndex < textChunks.length) {
+                // Small delay between chunks
+                setTimeout(speakNextChunk, 100);
+            }
+        };
+        
+        utterance.onerror = (event) => {
+            console.error('TTS Error:', event.error);
+            showPageStatus('TTS error occurred', true);
+        };
+        
+        // Start speaking
+        speechSynthesis.speak(utterance);
     }
     
     // Start speaking the first chunk
@@ -732,10 +774,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const ttsButton = document.getElementById('ttsToggle');
     ttsButton.classList.toggle('active', ttsEnabled);
     
-    // Load voices when they become available
+    // Load voices when they become available (especially important for Firefox)
     if ('speechSynthesis' in window) {
+        // Also listen for voices to load (Firefox loads them asynchronously)
         speechSynthesis.onvoiceschanged = () => {
-            initSpeechSynthesis();
+            console.log('Voices loaded...');
         };
     }
 });
