@@ -462,29 +462,48 @@ function initSpeechRecognition() {
 // Initialize speech synthesis
 function initSpeechSynthesis() {
     if ('speechSynthesis' in window) {
-        const voices = speechSynthesis.getVoices();
-        const languageSelect = document.getElementById('languageSelect');
-        
-        // Populate language selector
-        const languages = {
-            'en-US': 'English (US)',
-            'es-ES': 'Spanish',
-            'fr-FR': 'French',
-            'de-DE': 'German',
-            'it-IT': 'Italian',
-            'pt-BR': 'Portuguese',
-            'ru-RU': 'Russian',
-            'ja-JP': 'Japanese',
-            'zh-CN': 'Chinese'
+        // Wait for voices to load (important for Firefox)
+        const loadVoices = () => {
+            const voices = speechSynthesis.getVoices();
+            const languageSelect = document.getElementById('languageSelect');
+            
+            // Clear existing options
+            languageSelect.innerHTML = '';
+            
+            // Populate language selector
+            const languages = {
+                'en-US': 'English (US)',
+                'es-ES': 'Spanish',
+                'fr-FR': 'French',
+                'de-DE': 'German',
+                'it-IT': 'Italian',
+                'pt-BR': 'Portuguese',
+                'ru-RU': 'Russian',
+                'ja-JP': 'Japanese',
+                'zh-CN': 'Chinese'
+            };
+            
+            // Add language options
+            Object.entries(languages).forEach(([code, name]) => {
+                const option = document.createElement('option');
+                option.value = code;
+                option.textContent = name;
+                languageSelect.appendChild(option);
+            });
+            
+            console.log('Voices loaded:', voices.length);
+            voices.forEach((v, index) => {
+                console.log(`${index}: ${v.name} (${v.lang})`);
+            });
         };
         
-        // Add language options
-        Object.entries(languages).forEach(([code, name]) => {
-            const option = document.createElement('option');
-            option.value = code;
-            option.textContent = name;
-            languageSelect.appendChild(option);
-        });
+        // Try to load voices immediately
+        loadVoices();
+        
+        // Also listen for voices to be loaded (Firefox specific)
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = loadVoices;
+        }
     }
 }
 
@@ -501,38 +520,97 @@ function speakText(text) {
     // Get available voices
     const voices = speechSynthesis.getVoices();
     
-    // Improved voice selection logic to prioritize high-quality voices
+    // Debug: Log all available voices
+    console.log('=== AVAILABLE VOICES ===');
+    voices.forEach((v, index) => {
+        console.log(`${index}: ${v.name} (${v.lang}) - ${v.voiceURI}`);
+    });
+    console.log('=== END VOICES ===');
+    
+    // Improved voice selection logic optimized for Firefox
     let voice = null;
     
-    // First, try to find a high-quality voice for the selected language
-    // Look for voices with names that suggest high quality (Google, Microsoft, etc.)
+    // Firefox-specific voice selection: prioritize feminine voices and better quality
+    const feminineVoiceKeywords = [
+        'samantha', 'victoria', 'alex', 'karen', 'fiona', 'tessa', 'sophie', 'emma',
+        'lisa', 'sarah', 'jennifer', 'helena', 'maria', 'anna', 'elena', 'nina',
+        'google', 'microsoft', 'apple', 'female', 'woman', 'girl'
+    ];
+    
+    const masculineVoiceKeywords = [
+        'david', 'tom', 'mark', 'john', 'mike', 'steve', 'peter', 'james',
+        'male', 'man', 'boy', 'guy'
+    ];
+    
+    // First, try to find a feminine voice for the selected language
     voice = voices.find(v => 
         v.lang === language && 
-        (v.name.toLowerCase().includes('google') || 
-         v.name.toLowerCase().includes('microsoft') ||
-         v.name.toLowerCase().includes('samantha') ||
-         v.name.toLowerCase().includes('victoria') ||
-         v.name.toLowerCase().includes('alex'))
+        feminineVoiceKeywords.some(keyword => 
+            v.name.toLowerCase().includes(keyword) ||
+            v.voiceURI.toLowerCase().includes(keyword)
+        )
     );
     
-    // If not found, try any voice for the language
+    console.log('Feminine voice found:', voice ? voice.name : 'None');
+    
+    // If not found, try any voice for the language (avoiding masculine ones)
+    if (!voice) {
+        voice = voices.find(v => 
+            v.lang === language && 
+            !masculineVoiceKeywords.some(keyword => 
+                v.name.toLowerCase().includes(keyword) ||
+                v.voiceURI.toLowerCase().includes(keyword)
+            )
+        );
+        console.log('Non-masculine voice found:', voice ? voice.name : 'None');
+    }
+    
+    // If still not found, try any voice for the language
     if (!voice) {
         voice = voices.find(v => v.lang === language);
+        console.log('Language-specific voice found:', voice ? voice.name : 'None');
     }
     
     // If still not found, try to find a voice that starts with the language code
     if (!voice) {
         voice = voices.find(v => v.lang.startsWith(language));
+        console.log('Language-starting voice found:', voice ? voice.name : 'None');
     }
     
-    // If still not found, try to find any English voice (fallback)
+    // If still not found, try to find any English feminine voice (fallback)
+    if (!voice) {
+        voice = voices.find(v => 
+            v.lang.startsWith('en') && 
+            feminineVoiceKeywords.some(keyword => 
+                v.name.toLowerCase().includes(keyword) ||
+                v.voiceURI.toLowerCase().includes(keyword)
+            )
+        );
+        console.log('English feminine fallback voice found:', voice ? voice.name : 'None');
+    }
+    
+    // If still not found, try any English voice (avoiding masculine ones)
+    if (!voice) {
+        voice = voices.find(v => 
+            v.lang.startsWith('en') && 
+            !masculineVoiceKeywords.some(keyword => 
+                v.name.toLowerCase().includes(keyword) ||
+                v.voiceURI.toLowerCase().includes(keyword)
+            )
+        );
+        console.log('English non-masculine fallback voice found:', voice ? voice.name : 'None');
+    }
+    
+    // If still not found, try any English voice
     if (!voice) {
         voice = voices.find(v => v.lang.startsWith('en'));
+        console.log('English fallback voice found:', voice ? voice.name : 'None');
     }
     
     // If still no voice found, use the first available voice
     if (!voice && voices.length > 0) {
         voice = voices[0];
+        console.log('Using first available voice:', voice.name);
     }
     
     // If no voice available, show a message and return
@@ -542,10 +620,10 @@ function speakText(text) {
         return;
     }
     
-    console.log('Selected voice:', voice.name, voice.lang, voice.voiceURI);
+    console.log('Final selected voice:', voice.name, voice.lang, voice.voiceURI);
     
-    // Split long text into smaller chunks if needed
-    const maxChunkLength = 200; // Maximum characters per chunk
+    // Firefox-specific optimizations: smaller chunks and better timing
+    const maxChunkLength = 150; // Reduced for Firefox to prevent breaking
     const textChunks = [];
     
     if (text.length > maxChunkLength) {
@@ -569,7 +647,7 @@ function speakText(text) {
         textChunks.push(text);
     }
     
-    // Speak each chunk sequentially
+    // Speak each chunk sequentially with better timing
     let currentChunkIndex = 0;
     
     function speakNextChunk() {
@@ -580,15 +658,15 @@ function speakText(text) {
         const utterance = new SpeechSynthesisUtterance(textChunks[currentChunkIndex]);
         utterance.voice = voice;
         utterance.rate = speed;
-        utterance.pitch = 1.0; // Normal pitch
+        utterance.pitch = 1.1; // Slightly higher pitch for more feminine sound
         utterance.volume = 1.0; // Full volume
         
         // Add event listeners for better control
         utterance.onend = () => {
             currentChunkIndex++;
             if (currentChunkIndex < textChunks.length) {
-                // Small delay between chunks
-                setTimeout(speakNextChunk, 100);
+                // Longer delay between chunks for Firefox to prevent breaking
+                setTimeout(speakNextChunk, 200);
             }
         };
         
