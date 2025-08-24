@@ -1,3 +1,9 @@
+// Chrome extension compatibility check
+if (typeof chrome === 'undefined' || !chrome.runtime) {
+  console.error('Chrome extension APIs not available');
+  alert('This extension requires Chrome extension APIs to function properly.');
+}
+
 const chatDiv = document.getElementById('chat')
 const input = document.getElementById('userInput')
 const includePageToggle = document.getElementById('includePageToggle')
@@ -11,7 +17,7 @@ document.getElementById('includePageToggle').addEventListener('change', async (e
   
   if (includePageContent) {
     try {
-      console.log('Starting page scraping process...'); // Debug log
+
       
       // Query the active tab without URL filtering first
       const [tab] = await chrome.tabs.query({ 
@@ -20,55 +26,93 @@ document.getElementById('includePageToggle').addEventListener('change', async (e
       });
 
       if (!tab) {
-        console.log('No active tab found');
+
         showPageStatus('No active tab found.', true);
         return;
       }
 
-      console.log('Active tab:', tab.id, tab.url); // Debug log
+      
+      
+
 
       // Check if we can access the tab
       if (!tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
-        console.log('Cannot access this type of page:', tab.url);
+
         showPageStatus('Cannot scrape this type of page.', true);
         return;
       }
 
-      // Send message to content script
-      console.log('Sending message to content script...'); // Debug log
-      chrome.tabs.sendMessage(tab.id, { action: 'scrapePage' }, async (response) => {
-        if (chrome.runtime.lastError) {
-          console.error('Error sending message:', chrome.runtime.lastError);
-          // Try to inject the content script if it's not already there
-          try {
-            console.log('Attempting to inject scraping function...');
-            const results = await chrome.scripting.executeScript({
-              target: { tabId: tab.id },
-              func: () => {
-                // This function will be injected into the page
-                return {
-                  title: document.title,
-                  content: document.body.innerText
-                };
+      // Try to send message to content script first
+      
+      try {
+        // Use a promise-based approach for better error handling with timeout
+        const response = await Promise.race([
+          new Promise((resolve, reject) => {
+            chrome.tabs.sendMessage(tab.id, { action: 'scrapePage' }, (response) => {
+              if (chrome.runtime.lastError) {
+                reject(new Error(chrome.runtime.lastError.message));
+              } else {
+                resolve(response);
               }
             });
-            
-            if (results && results[0] && results[0].result) {
-              console.log('Successfully scraped content');
-              handleScrapedContent(results[0].result);
-            } else {
-              console.log('No content found in results');
-              showPageStatus('Failed to scrape page content.', true);
-            }
-          } catch (err) {
-            console.error('Failed to inject scraping function:', err);
-            showPageStatus('Failed to scrape page content. Please refresh the page.', true);
-          }
-          return;
-        }
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Content script timeout')), 3000)
+          )
+        ]);
         
+
         handleScrapedContent(response);
-      });
+        
+      } catch (contentScriptError) {
+        // Content script not available, falling back to direct injection
+        
+        // Fallback: inject scraping function directly
+        try {
+
+          const results = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: () => {
+              try {
+                // Enhanced scraping function
+                const title = document.title || 'Untitled Page';
+                const content = document.body ? document.body.innerText : '';
+                const url = window.location.href;
+                
+                // Clean up the content (remove excessive whitespace)
+                const cleanContent = content
+                  .replace(/\s+/g, ' ')
+                  .replace(/\n\s*\n/g, '\n')
+                  .trim();
+                
+                return {
+                  title: title,
+                  content: cleanContent,
+                  url: url
+                };
+              } catch (err) {
+                console.error('Error in injected scraping function:', err);
+                return { error: 'Failed to scrape page content' };
+              }
+            }
+          });
+          
+          if (results && results[0] && results[0].result) {
+            const result = results[0].result;
+            if (result.error) {
+              throw new Error(result.error);
+            }
+
+            handleScrapedContent(result);
+          } else {
+            throw new Error('No content found in injection results');
+          }
+          
+        } catch (injectionError) {
+          console.error('Failed to inject scraping function:', injectionError);
+          showPageStatus('Failed to scrape page content. Please refresh the page and try again.', true);
+        }
+      }
     } catch (err) {
       console.error('Error in scraping process:', err);
       showPageStatus('Failed to scrape page content.', true);
@@ -81,16 +125,23 @@ document.getElementById('includePageToggle').addEventListener('change', async (e
 
 // Helper function to handle scraped content
 function handleScrapedContent(response) {
-  console.log('Received response from content script:', response ? 'Success' : 'No data');
+  if (response && response.error) {
+    showPageStatus(`Scraping failed: ${response.error}`, true);
+    return;
+  }
   
-  if (response && response.content) {
-    showPageStatus(`Scraped: ${response.title}`, false);
+  if (response && response.content && response.content.trim()) {
+    const title = response.title || 'Current Page';
+    const contentLength = response.content.length;
+    
+    showPageStatus(`Scraped: ${title} (${contentLength} characters)`, false);
+    
     // Store the scraped content for use in chat
     window.scrapedContent = response.content;
-    console.log('Content length:', response.content.length);
+    
   } else {
-    showPageStatus('No content found on this page.', true);
-    console.log('No content in response');
+    showPageStatus('No readable content found on this page.', true);
+    window.scrapedContent = null;
   }
 }
 
@@ -371,7 +422,7 @@ document.getElementById('ttsToggle').addEventListener('click', () => {
 
 // Initialize speech recognition
 function initSpeechRecognition() {
-    console.log('Initializing speech recognition...');
+    
     
     if ('webkitSpeechRecognition' in window) {
         recognition = new webkitSpeechRecognition();
@@ -379,10 +430,10 @@ function initSpeechRecognition() {
         recognition.interimResults = true; // Enable interim results for better feedback
         recognition.maxAlternatives = 1;
         
-        console.log('Speech recognition object created');
+
         
         recognition.onstart = () => {
-            console.log('Speech recognition started - listening...');
+    
             isRecording = true;
             const micButton = document.getElementById('micButton');
             micButton.classList.add('recording');
@@ -390,7 +441,7 @@ function initSpeechRecognition() {
         };
         
         recognition.onend = () => {
-            console.log('Speech recognition ended');
+    
             isRecording = false;
             const micButton = document.getElementById('micButton');
             micButton.classList.remove('recording');
@@ -398,13 +449,13 @@ function initSpeechRecognition() {
         };
         
         recognition.onresult = (event) => {
-            console.log('Speech recognition result received:', event.results);
+    
             
             const transcript = Array.from(event.results)
                 .map(result => result[0].transcript)
                 .join('');
             
-            console.log('Transcript:', transcript);
+    
             
             // Update input field with interim results
             document.getElementById('userInput').value = transcript;
@@ -859,4 +910,8 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Voices loaded...');
         };
     }
+    
+
 });
+
+

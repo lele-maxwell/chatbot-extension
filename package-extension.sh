@@ -8,6 +8,7 @@ zip -r chatbot-extension.zip \
     manifest.json \
     popup.html \
     popup.js \
+    content.js \
     output.css \
     settings.html \
     settings.js \

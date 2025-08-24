@@ -13,6 +13,13 @@
       "http://*/*",
       "https://*/*"
     ],
+    "content_scripts": [
+      {
+        "matches": ["http://*/*", "https://*/*"],
+        "js": ["content.js"],
+        "run_at": "document_end"
+      }
+    ],
     "action": {
       "default_popup": "popup.html",
       "default_icon": {
