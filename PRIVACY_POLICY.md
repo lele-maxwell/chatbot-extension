@@ -1,43 +1,43 @@
-# Privacy Policy for MaxAiChat Firefox Extension
+# Privacy Policy for MaxAiChat (Chrome/Firefox Extension)
 
-**Last updated:** December 2024  
+**Last updated:** August 2025  
 **Extension:** MaxAiChat  
 **Developer:** Maxwell  
 **GitHub:** https://github.com/lele-maxwell/chatbot-extension
 
 ## Overview
 
-MaxAiChat is a Firefox browser extension that provides AI-powered chat functionality with voice input and text-to-speech capabilities. This privacy policy explains how we handle your data and protect your privacy.
+MaxAiChat is a browser extension (Chrome and Firefox) that provides AI-powered chat with optional page context, voice input, and text-to-speech. This policy explains how we handle data and protect your privacy.
 
 ## Data Collection
 
 ### What We Collect
 
-**We DO NOT collect, store, or transmit any personal data to our servers.**
+**We DO NOT collect, store, or transmit any personal data to our servers.** We do not run analytics or ads.
 
-The extension operates entirely locally within your browser and only communicates with the AI service you configure.
+The extension operates locally in your browser and only communicates with the AI service you configure.
 
 ### What We Store Locally
 
 The extension stores the following data locally in your browser:
 
-- **API Configuration**: Your OpenAI-compatible API endpoint and key (encrypted in browser storage)
-- **Chat History**: Your conversation history (stored locally in browser storage)
-- **Settings**: Your preferences for voice settings, language, and interface options
-- **Page Content**: Current webpage content (only when you enable page analysis, processed locally)
+- **API Configuration**: Your OpenAI‑compatible API endpoint and key (stored in `chrome.storage.local`/`browser.storage.local`)
+- **Settings**: Preferences for language/TTS and interface options
+- **Conversation Context**: Recent messages shown in the popup (in‑memory; optionally persisted if implemented)
+- **Page Content (optional)**: Text from the current tab only when you enable “Include Page.” It is processed locally and may be sent to your configured AI endpoint only after you submit a prompt.
 
 ## Data Usage
 
 ### How Your Data is Used
 
-1. **API Communication**: Your messages and API key are sent to your configured AI service provider (e.g., OpenAI, Anthropic, etc.)
+1. **API Communication**: Your prompts and the scraped page text (if you enabled it) are sent to the AI service you configure (e.g., OpenAI‑compatible providers). The API key is included only to authenticate your request.
 2. **Voice Processing**: Voice input is processed by your browser's speech recognition API
 3. **Text-to-Speech**: AI responses are converted to speech using your browser's TTS capabilities
-4. **Page Analysis**: When enabled, webpage content is analyzed locally and sent to your AI service
+4. **Page Analysis**: When enabled, we read the visible text (title and body) of the active tab to provide context. We do not access chrome:// pages or other restricted schemes.
 
 ### Third-Party Services
 
-- **AI Service Providers**: Your messages are sent to the AI service you configure (OpenAI, Anthropic, etc.)
+- **AI Service Providers**: Your messages are sent only to the AI endpoint you configure.
 - **Browser APIs**: We use your browser's built-in speech recognition and text-to-speech APIs
 - **No Other Third Parties**: We do not share data with any other third-party services
 
@@ -45,7 +45,7 @@ The extension stores the following data locally in your browser:
 
 ### Protection Measures
 
-- **Local Storage**: All data is stored locally in your browser's secure storage
+- **Local Storage**: Settings and API credentials are stored locally in your browser’s extension storage
 - **HTTPS Only**: All API communications use encrypted HTTPS connections
 - **No Server Storage**: We do not maintain any servers that store your data
 - **API Key Security**: Your API keys are stored securely in browser storage
@@ -60,9 +60,9 @@ The extension stores the following data locally in your browser:
 
 ### Local Data
 
-- **Chat History**: Stored locally until you clear browser data or uninstall the extension
-- **Settings**: Persist until you change them or uninstall the extension
-- **API Configuration**: Stored until you update or remove it
+- **Chat History (if stored)**: Until you clear browser data or uninstall the extension
+- **Settings**: Until you change them or uninstall the extension
+- **API Configuration**: Until you update or remove it
 
 ### No Server Retention
 
@@ -103,7 +103,8 @@ If you have questions about this privacy policy or our data practices:
 This extension complies with:
 - **GDPR**: European data protection regulations
 - **CCPA**: California Consumer Privacy Act
-- **Firefox Add-on Policies**: Mozilla's privacy and security requirements
+- **Chrome Web Store Developer Program Policies**: data safety, permissions, and user transparency
+- **Firefox Add‑on Policies**: Mozilla’s privacy and security requirements
 
 ## Legal Basis
 
