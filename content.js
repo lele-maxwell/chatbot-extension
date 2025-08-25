@@ -34,9 +34,19 @@ function initContentScript() {
             
             // Clean up the content
             content = content
-              .replace(/\s+/g, ' ')
-              .replace(/\n\s*\n/g, '\n')
+              .replace(/\u00A0/g, ' ') // non-breaking space
+              .replace(/[\t\r]+/g, ' ')
+              .replace(/\s+\n/g, '\n')
+              .replace(/\n\s+/g, '\n')
+              .replace(/\n{3,}/g, '\n\n')
+              .replace(/\s{2,}/g, ' ')
               .trim();
+
+            // Cap size for reliability
+            const MAX_CHARS = 15000;
+            if (content.length > MAX_CHARS) {
+              content = content.slice(0, MAX_CHARS);
+            }
             
             const pageData = {
               title: title,

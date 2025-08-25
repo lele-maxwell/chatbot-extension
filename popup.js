@@ -57,7 +57,7 @@ document.getElementById('includePageToggle').addEventListener('change', async (e
             });
           }),
           new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Content script timeout')), 3000)
+            setTimeout(() => reject(new Error('Content script timeout')), 5000)
           )
         ]);
         
@@ -132,12 +132,16 @@ function handleScrapedContent(response) {
   
   if (response && response.content && response.content.trim()) {
     const title = response.title || 'Current Page';
-    const contentLength = response.content.length;
+    // Normalize and cap content size to avoid API timeouts
+    const normalized = response.content.replace(/\s+/g, ' ').replace(/\n\s*\n/g, '\n').trim();
+    const MAX_CHARS = 12000; // safe cap
+    const capped = normalized.length > MAX_CHARS ? normalized.slice(0, MAX_CHARS) : normalized;
+    const contentLength = capped.length;
     
     showPageStatus(`Scraped: ${title} (${contentLength} characters)`, false);
     
     // Store the scraped content for use in chat
-    window.scrapedContent = response.content;
+    window.scrapedContent = capped;
     
   } else {
     showPageStatus('No readable content found on this page.', true);
@@ -354,13 +358,88 @@ function cleanAIResponse(response) {
   return cleaned.trim();
 }
 
+// Format AI text into readable paragraphs and bullet lists
+function createFormattedMessageElement(text) {
+  const container = document.createElement('div');
+  container.className = 'space-y-3';
+
+  const escapeHtml = (str) => str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  const renderInlineMarkdown = (str) => {
+    // Escape first, then apply light markdown (bold/italic/code)
+    let s = escapeHtml(str);
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    s = s.replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">$1</code>');
+    return s;
+  };
+
+  const normalized = (text || '').replace(/\r\n/g, '\n').trim();
+  const blocks = normalized.split(/\n{2,}/); // paragraphs or list blocks
+
+  const isBulletLine = (line) => /^(?:[-*•]|\d+\.)\s+/.test(line.trim());
+
+  for (const rawBlock of blocks) {
+    const lines = rawBlock.split(/\n/).map(l => l.trim()).filter(Boolean);
+    const allBullets = lines.length > 0 && lines.every(isBulletLine);
+
+    // Heading-only block (e.g., "Section:" or "## Title")
+    if (lines.length === 1 && (/^#+\s+/.test(lines[0]) || /:\s*$/.test(lines[0]))) {
+      const raw = lines[0];
+      let title = raw.replace(/^#+\s+/, '').replace(/:\s*$/, '').trim();
+      const h = document.createElement('div');
+      h.className = 'font-semibold text-base md:text-lg text-blue-800 dark:text-blue-200';
+      h.innerHTML = renderInlineMarkdown(title);
+      container.appendChild(h);
+      continue;
+    }
+
+    if (allBullets) {
+      // Determine ordered vs unordered
+      const ordered = lines.every(l => /^\d+\./.test(l));
+      const list = document.createElement(ordered ? 'ol' : 'ul');
+      list.className = 'list-disc pl-5 space-y-1';
+      if (ordered) list.className = 'list-decimal pl-5 space-y-1';
+
+      lines.forEach(line => {
+        const itemText = line.replace(/^(?:[-*•]|\d+\.)\s+/, '');
+        const li = document.createElement('li');
+        li.innerHTML = renderInlineMarkdown(itemText);
+        list.appendChild(li);
+      });
+      container.appendChild(list);
+    } else {
+      const p = document.createElement('p');
+      p.className = 'leading-relaxed';
+      // If paragraph starts with a title-like phrase ending with ':', bold that prefix
+      const match = rawBlock.match(/^([^\n:]{3,}):\s*(.*)$/);
+      if (match) {
+        const strong = `<strong>${renderInlineMarkdown(match[1])}:</strong> ${renderInlineMarkdown(match[2])}`;
+        p.innerHTML = strong;
+      } else {
+        p.innerHTML = renderInlineMarkdown(rawBlock);
+      }
+      container.appendChild(p);
+    }
+  }
+
+  return container;
+}
+
 function appendMessage(sender, text) {
   const msg = document.createElement('div')
   msg.className =
     sender === 'user'
       ? 'text-right text-sm text-black dark:text-white'
       : 'text-left text-blue-700 dark:text-blue-300'
-  msg.textContent = text
+  if (sender === 'bot') {
+    msg.appendChild(createFormattedMessageElement(text))
+  } else {
+    msg.textContent = text
+  }
   chatDiv.appendChild(msg)
   chatDiv.scrollTop = chatDiv.scrollHeight
 }
@@ -726,7 +805,7 @@ function speakText(text) {
             showPageStatus('TTS error occurred', true);
         };
         
-        // Start speaking
+        // Start speaking and ensure we queue all chunks
         speechSynthesis.speak(utterance);
     }
     
@@ -880,17 +959,19 @@ document.getElementById('replayButton').addEventListener('click', () => {
 // Modify the existing appendMessage function to respect TTS toggle
 const originalAppendMessage = appendMessage;
 appendMessage = (sender, text) => {
-    originalAppendMessage(sender, text);
-    
     if (sender === 'bot') {
+        // Render with formatting and ensure full TTS
+        originalAppendMessage(sender, text);
         lastResponse = text;
-        document.getElementById('replayButton').style.display = 'block';
-        if (ttsEnabled) {
-            // Add a small delay to ensure the message is fully displayed before speaking
-            setTimeout(() => {
-                speakText(text);
-            }, 100);
+        const replay = document.getElementById('replayButton');
+        if (replay) replay.style.display = 'block';
+        if (ttsEnabled && text) {
+            // Cancel any ongoing speech and read the full content
+            if ('speechSynthesis' in window) speechSynthesis.cancel();
+            setTimeout(() => speakText(text), 50);
         }
+    } else {
+        originalAppendMessage(sender, text);
     }
 };
 
