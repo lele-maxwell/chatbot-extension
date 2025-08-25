@@ -104,3 +104,6 @@ docs/_build/
 
 # Local development files
 .local/ 
+
+# node_modules
+node_modules/
