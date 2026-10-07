@@ -1,4 +1,4 @@
-# MaxAiChat - Firefox Extension
+# MaxAiChat - Chrome / Firefox Extension
 
 AI-powered chatbot with voice input, TTS, and conversation memory. Powered by OpenAI-compatible APIs.
 
